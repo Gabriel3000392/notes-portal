@@ -312,13 +312,18 @@ export async function saveLiveUserAccess(user: PortalUser) {
 export async function createPendingProfile(userId: string, email: string, name: string) {
   if (!supabase) throw new Error('Supabase is not configured')
 
-  const { error } = await supabase.from('profiles').upsert({
-    id: userId,
-    email,
-    name,
-    role: 'student',
-    status: 'pending',
-  })
+  const { error } = await supabase
+    .from('profiles')
+    .upsert(
+      {
+        id: userId,
+        email,
+        name,
+        role: 'student',
+        status: 'pending',
+      },
+      { ignoreDuplicates: true, onConflict: 'id' },
+    )
 
   if (error) throw error
 }

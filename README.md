@@ -52,6 +52,10 @@ SUPABASE_SECRET_KEY=
 
 Never expose `SUPABASE_SECRET_KEY` to Netlify, Vercel, or browser builds unless the command being run is an admin-only server script.
 
+If signup shows a Supabase database error on an existing project, run
+`supabase/create-profile-on-signup.sql` in the Supabase SQL editor. It creates
+the pending profile row automatically when Supabase Auth creates a user.
+
 ## Deploy
 
 The repository includes config for both Netlify and Vercel.
