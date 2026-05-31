@@ -23,7 +23,11 @@ const supabase = createClient(supabaseUrl, secretKey, {
   auth: { persistSession: false },
 })
 
-const status = 'draft'
+const status = process.env.IMPORT_ASSET_STATUS ?? 'published'
+if (!['draft', 'published', 'archived'].includes(status)) {
+  console.error('IMPORT_ASSET_STATUS must be draft, published, or archived')
+  process.exit(1)
+}
 const lectureSlug = withSourceSuffix(pkg.lecture.slug, pkg.source?.id)
 
 const { data: course, error: courseError } = await supabase

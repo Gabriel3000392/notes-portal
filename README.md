@@ -90,8 +90,9 @@ SUPABASE_URL=... SUPABASE_SECRET_KEY=... npm run import:lecture -- package.json
 ```
 
 The import script upserts the course and lecture, then writes flashcards, quizzes,
-questions, tags, study guides, and a generation job as `draft` records. The public
-app should only show these assets to students after admin review and publishing.
+questions, tags, study guides, and a generation job. Imported study assets default
+to `published` so new lecture downloader output appears without manual approval.
+Set `IMPORT_ASSET_STATUS=draft` before running the importer if a batch needs review.
 
 For local review without exposing the Supabase secret key to the browser, export a
 static snapshot after importing:
