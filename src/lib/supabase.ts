@@ -7,6 +7,9 @@ const supabasePublishableKey = (
 ) as string | undefined
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabasePublishableKey)
+export const isLocalDemoEnabled = !isSupabaseConfigured && import.meta.env.DEV
+export const isMissingProductionSupabaseConfig =
+  !isSupabaseConfigured && import.meta.env.PROD
 
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabasePublishableKey!)

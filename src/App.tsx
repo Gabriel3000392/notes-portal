@@ -20,7 +20,12 @@ import {
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
-import { isSupabaseConfigured, supabase } from './lib/supabase'
+import {
+  isLocalDemoEnabled,
+  isMissingProductionSupabaseConfig,
+  isSupabaseConfigured,
+  supabase,
+} from './lib/supabase'
 import {
   createPendingProfile,
   fetchLivePortalState,
@@ -128,7 +133,7 @@ function App() {
 
   const currentUser =
     liveUser ??
-    (!isSupabaseConfigured
+    (isLocalDemoEnabled
       ? state.users.find((user) => user.id === sessionId) ?? null
       : null)
 
@@ -328,6 +333,11 @@ function AuthScreen({
     const normalEmail = email.trim().toLowerCase()
     if (!normalEmail) return
 
+    if (isMissingProductionSupabaseConfig) {
+      setMessage('Supabase is not configured for this deployment.')
+      return
+    }
+
     if (supabase) {
       if (password.length < 6) {
         setMessage('Use a password with at least 6 characters.')
@@ -415,29 +425,43 @@ function AuthScreen({
           course access, and admin-managed lecture notes.
         </p>
         <div className="status-strip">
-          <span>{isSupabaseConfigured ? 'Supabase connected' : 'Demo mode'}</span>
+          <span>
+            {isSupabaseConfigured
+              ? 'Supabase connected'
+              : isLocalDemoEnabled
+                ? 'Demo mode'
+                : 'Supabase config missing'}
+          </span>
           {snapshotLoaded && <span>Snapshot loaded</span>}
           <span>{state.courses.length} courses seeded</span>
           <span>{state.courses.reduce((sum, c) => sum + c.lectures.length, 0)} lectures</span>
         </div>
       </section>
       <section className="auth-card">
-        <div className="segmented">
-          <button
-            className={mode === 'signin' ? 'active' : ''}
-            onClick={() => setMode('signin')}
-            type="button"
-          >
-            Sign in
-          </button>
-          <button
-            className={mode === 'signup' ? 'active' : ''}
-            onClick={() => setMode('signup')}
-            type="button"
-          >
-            Sign up
-          </button>
-        </div>
+        {isMissingProductionSupabaseConfig && (
+          <p className="form-message">
+            This deployment is missing Vercel environment variables:
+            VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.
+          </p>
+        )}
+        {!isMissingProductionSupabaseConfig && (
+          <div className="segmented">
+            <button
+              className={mode === 'signin' ? 'active' : ''}
+              onClick={() => setMode('signin')}
+              type="button"
+            >
+              Sign in
+            </button>
+            <button
+              className={mode === 'signup' ? 'active' : ''}
+              onClick={() => setMode('signup')}
+              type="button"
+            >
+              Sign up
+            </button>
+          </div>
+        )}
         <form onSubmit={submit}>
           {mode === 'signup' && (
             <label>
@@ -469,7 +493,9 @@ function AuthScreen({
           {message && <p className="form-message">{message}</p>}
           {authError && <p className="form-message">{authError}</p>}
           <button className="primary-button" type="submit">
-            {authLoading
+            {isMissingProductionSupabaseConfig
+              ? 'Deployment not configured'
+              : authLoading
               ? 'Loading...'
               : mode === 'signin'
                 ? 'Continue'
@@ -478,7 +504,7 @@ function AuthScreen({
                   : 'Create pending account'}
           </button>
         </form>
-        {!isSupabaseConfigured && (
+        {isLocalDemoEnabled && (
           <button
             className="link-button"
             onClick={() => signIn('admin-gabriel')}
