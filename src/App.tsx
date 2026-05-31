@@ -46,6 +46,74 @@ const cleanStudyText = (value: string) =>
     .replace(/^Quiz\s*/i, '')
     .trim()
 
+const stopWords = new Set([
+  'a',
+  'an',
+  'and',
+  'at',
+  'be',
+  'for',
+  'in',
+  'is',
+  'least',
+  'need',
+  'needed',
+  'on',
+  'pass',
+  'required',
+  'requirement',
+  'score',
+  'state',
+  'the',
+  'to',
+])
+
+function normaliseQuizAnswer(value: string) {
+  return cleanStudyText(value)
+    .toLowerCase()
+    .replace(/percent/g, '%')
+    .replace(/[^a-z0-9%]+/g, ' ')
+    .trim()
+}
+
+function quizAnswerTokens(value: string) {
+  return normaliseQuizAnswer(value)
+    .split(/\s+/)
+    .filter((token) => token && !stopWords.has(token))
+}
+
+function numberTokens(value: string) {
+  return (normaliseQuizAnswer(value).match(/\d+(?:\.\d+)?%?/g) ?? []).map((token) =>
+    token.replace(/%$/, ''),
+  )
+}
+
+function isQuizAnswerCorrect(userAnswer: string, correctAnswer: string) {
+  const userNormal = normaliseQuizAnswer(userAnswer)
+  const correctNormal = normaliseQuizAnswer(correctAnswer)
+  if (!userNormal || !correctNormal) return false
+  if (userNormal === correctNormal) return true
+  if (userNormal.length > 3 && correctNormal.includes(userNormal)) return true
+  if (correctNormal.length > 3 && userNormal.includes(correctNormal)) return true
+
+  const userTokens = new Set(quizAnswerTokens(userAnswer))
+  const correctTokens = new Set(quizAnswerTokens(correctAnswer))
+  if (!userTokens.size || !correctTokens.size) return false
+
+  const overlap = [...userTokens].filter((token) => correctTokens.has(token)).length
+  const coverage = overlap / correctTokens.size
+  const precision = overlap / userTokens.size
+  const correctNumbers = numberTokens(correctAnswer)
+  const userNumbers = new Set(numberTokens(userAnswer))
+  const matchingNumbers = correctNumbers.filter((token) => userNumbers.has(token))
+
+  if (correctNumbers.length && matchingNumbers.length === correctNumbers.length) {
+    return coverage >= 0.25 || precision >= 0.5
+  }
+
+  return coverage >= 0.65 || precision >= 0.75
+}
+
 type AppView = 'notes' | 'flashcards' | 'quizzes' | 'guides' | 'admin'
 
 function App() {
@@ -870,8 +938,7 @@ function QuizzesView({
   const activeQuestion = quizQuestions[questionIndex] ?? null
   const isCorrect =
     activeQuestion &&
-    selectedAnswer.trim().toLowerCase() ===
-      activeQuestion.correctAnswer.trim().toLowerCase()
+    isQuizAnswerCorrect(selectedAnswer, activeQuestion.correctAnswer)
 
   useEffect(() => {
     setSelectedQuizId(null)
