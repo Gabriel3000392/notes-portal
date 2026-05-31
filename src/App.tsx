@@ -4,8 +4,12 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
+  FileText,
   Library,
+  ListChecks,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   RotateCcw,
   Shield,
   UserCheck,
@@ -37,6 +41,8 @@ const cleanStudyText = (value: string) =>
     .replace(/^Quiz\s*/i, '')
     .trim()
 
+type AppView = 'notes' | 'flashcards' | 'quizzes' | 'guides' | 'admin'
+
 function App() {
   const [state, setState] = useState<PortalState>(() => loadState())
   const [snapshotLoaded, setSnapshotLoaded] = useState(false)
@@ -44,7 +50,7 @@ function App() {
   const [liveUser, setLiveUser] = useState<PortalUser | null>(null)
   const [authLoading, setAuthLoading] = useState(isSupabaseConfigured)
   const [authError, setAuthError] = useState('')
-  const [view, setView] = useState<'notes' | 'study' | 'admin'>('notes')
+  const [view, setView] = useState<AppView>('notes')
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
   const [selectedLectureSlug, setSelectedLectureSlug] = useState<string | null>(
     null,
@@ -215,11 +221,25 @@ function App() {
           <BookOpen size={17} /> Notes
         </button>
         <button
-          className={view === 'study' ? 'active' : ''}
-          onClick={() => setView('study')}
+          className={view === 'flashcards' ? 'active' : ''}
+          onClick={() => setView('flashcards')}
           type="button"
         >
-          <Brain size={17} /> Study
+          <Brain size={17} /> Flashcards
+        </button>
+        <button
+          className={view === 'quizzes' ? 'active' : ''}
+          onClick={() => setView('quizzes')}
+          type="button"
+        >
+          <ListChecks size={17} /> Quizzes
+        </button>
+        <button
+          className={view === 'guides' ? 'active' : ''}
+          onClick={() => setView('guides')}
+          type="button"
+        >
+          <FileText size={17} /> Guides
         </button>
         {currentUser.role === 'admin' && (
           <button
@@ -234,8 +254,28 @@ function App() {
 
       {view === 'admin' && currentUser.role === 'admin' ? (
         <AdminPanel state={state} setState={setState} />
-      ) : view === 'study' ? (
-        <StudyView
+      ) : view === 'flashcards' ? (
+        <FlashcardsView
+          state={state}
+          courses={accessibleCourses}
+          selectedCourse={selectedCourse}
+          setSelectedCourseId={(courseId) => {
+            setSelectedCourseId(courseId)
+            setSelectedLectureSlug(null)
+          }}
+        />
+      ) : view === 'quizzes' ? (
+        <QuizzesView
+          state={state}
+          courses={accessibleCourses}
+          selectedCourse={selectedCourse}
+          setSelectedCourseId={(courseId) => {
+            setSelectedCourseId(courseId)
+            setSelectedLectureSlug(null)
+          }}
+        />
+      ) : view === 'guides' ? (
+        <GuidesView
           state={state}
           courses={accessibleCourses}
           selectedCourse={selectedCourse}
@@ -494,6 +534,8 @@ function NotesView({
   setSelectedCourseId: (courseId: string) => void
   setSelectedLectureSlug: (slug: string) => void
 }) {
+  const [showCourses, setShowCourses] = useState(true)
+  const [showLectures, setShowLectures] = useState(true)
   const lectureIndex = selectedCourse?.lectures.findIndex(
     (lecture) => lecture.slug === selectedLecture?.slug,
   )
@@ -519,36 +561,63 @@ function NotesView({
   }
 
   return (
-    <main className="notes-layout">
-      <aside className="course-rail">
-        <h2>Courses</h2>
-        {courses.map((course) => (
-          <button
-            className={course.id === selectedCourse.id ? 'active' : ''}
-            key={course.id}
-            onClick={() => setSelectedCourseId(course.id)}
-            type="button"
-          >
-            <strong>{course.code}</strong>
-            <span>{course.lectures.length} lectures</span>
-          </button>
-        ))}
-      </aside>
-      <aside className="lecture-rail">
-        <h2>{selectedCourse.code}</h2>
-        {selectedCourse.lectures.map((lecture) => (
-          <button
-            className={lecture.slug === selectedLecture.slug ? 'active' : ''}
-            key={lecture.slug}
-            onClick={() => setSelectedLectureSlug(lecture.slug)}
-            type="button"
-          >
-            <span>{lecture.date}</span>
-            <strong>{lecture.title}</strong>
-          </button>
-        ))}
-      </aside>
+    <main
+      className={`notes-layout ${!showCourses ? 'hide-courses' : ''} ${
+        !showLectures ? 'hide-lectures' : ''
+      }`}
+    >
+      {showCourses && (
+        <aside className="course-rail">
+          <h2>Courses</h2>
+          {courses.map((course) => (
+            <button
+              className={course.id === selectedCourse.id ? 'active' : ''}
+              key={course.id}
+              onClick={() => setSelectedCourseId(course.id)}
+              type="button"
+            >
+              <strong>{course.code}</strong>
+              <span>{course.lectures.length} lectures</span>
+            </button>
+          ))}
+        </aside>
+      )}
+      {showLectures && (
+        <aside className="lecture-rail">
+          <h2>{selectedCourse.code}</h2>
+          {selectedCourse.lectures.map((lecture) => (
+            <button
+              className={lecture.slug === selectedLecture.slug ? 'active' : ''}
+              key={lecture.slug}
+              onClick={() => setSelectedLectureSlug(lecture.slug)}
+              type="button"
+            >
+              <span>{lecture.date}</span>
+              <strong>{lecture.title}</strong>
+            </button>
+          ))}
+        </aside>
+      )}
       <article className="reader">
+        <div className="reader-toolbar">
+          <button onClick={() => setShowCourses((current) => !current)} type="button">
+            {showCourses ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
+            {showCourses ? 'Hide courses' : 'Show courses'}
+          </button>
+          <button onClick={() => setShowLectures((current) => !current)} type="button">
+            {showLectures ? <PanelLeftClose size={17} /> : <PanelLeftOpen size={17} />}
+            {showLectures ? 'Hide lectures' : 'Show lectures'}
+          </button>
+          <button
+            onClick={() => {
+              setShowCourses(false)
+              setShowLectures(false)
+            }}
+            type="button"
+          >
+            Full reader
+          </button>
+        </div>
         <div className="reader-header">
           <div>
             <p className="eyebrow">
@@ -583,7 +652,41 @@ function NotesView({
   )
 }
 
-function StudyView({
+function StudyCourseRail({
+  courses,
+  selectedCourse,
+  setSelectedCourseId,
+}: {
+  courses: Course[]
+  selectedCourse: Course | null
+  setSelectedCourseId: (courseId: string) => void
+}) {
+  return (
+    <aside className="course-rail">
+      <h2>Courses</h2>
+      {courses.map((course) => (
+        <button
+          className={course.id === selectedCourse?.id ? 'active' : ''}
+          key={course.id}
+          onClick={() => setSelectedCourseId(course.id)}
+          type="button"
+        >
+          <strong>{course.code}</strong>
+          <span>{course.lectures.length} lectures</span>
+        </button>
+      ))}
+    </aside>
+  )
+}
+
+function lectureTitle(course: Course | null, lectureSlug: string) {
+  return (
+    course?.lectures.find((lecture) => lecture.slug === lectureSlug)?.title ??
+    'Lecture'
+  )
+}
+
+function FlashcardsView({
   state,
   courses,
   selectedCourse,
@@ -596,58 +699,17 @@ function StudyView({
 }) {
   const [flashcardIndex, setFlashcardIndex] = useState(0)
   const [flashcardFlipped, setFlashcardFlipped] = useState(false)
-  const [selectedQuizId, setSelectedQuizId] = useState<string | null>(null)
-  const [questionIndex, setQuestionIndex] = useState(0)
-  const [selectedAnswer, setSelectedAnswer] = useState('')
-  const [answerRevealed, setAnswerRevealed] = useState(false)
-
   const publishedFlashcards = state.flashcards.filter(
     (card) =>
       card.status === 'published' &&
       (!selectedCourse || card.courseId === selectedCourse.id),
   )
-  const publishedQuizzes = state.quizzes.filter(
-    (quiz) =>
-      quiz.status === 'published' &&
-      (!selectedCourse || quiz.courseId === selectedCourse.id),
-  )
-  const publishedGuides = state.studyGuides.filter(
-    (guide) =>
-      guide.status === 'published' &&
-      (!selectedCourse || guide.courseId === selectedCourse.id),
-  )
-  const selectedQuiz =
-    publishedQuizzes.find((quiz) => quiz.id === selectedQuizId) ??
-    publishedQuizzes[0] ??
-    null
-  const quizQuestions = selectedQuiz
-    ? state.quizQuestions.filter(
-        (question) =>
-          question.quizId === selectedQuiz.id && question.status === 'published',
-      )
-    : []
   const activeCard = publishedFlashcards[flashcardIndex] ?? null
-  const activeQuestion = quizQuestions[questionIndex] ?? null
-  const isCorrect =
-    activeQuestion &&
-    selectedAnswer.trim().toLowerCase() ===
-      activeQuestion.correctAnswer.trim().toLowerCase()
-  const selectedCourseLectureCount = selectedCourse?.lectures.length ?? 0
 
   useEffect(() => {
     setFlashcardIndex(0)
     setFlashcardFlipped(false)
-    setSelectedQuizId(null)
-    setQuestionIndex(0)
-    setSelectedAnswer('')
-    setAnswerRevealed(false)
   }, [selectedCourse?.id])
-
-  useEffect(() => {
-    setQuestionIndex(0)
-    setSelectedAnswer('')
-    setAnswerRevealed(false)
-  }, [selectedQuiz?.id])
 
   function moveFlashcard(direction: -1 | 1) {
     if (!publishedFlashcards.length) return
@@ -659,6 +721,144 @@ function StudyView({
     })
     setFlashcardFlipped(false)
   }
+
+  return (
+    <main className="study-layout">
+      <StudyCourseRail
+        courses={courses}
+        selectedCourse={selectedCourse}
+        setSelectedCourseId={setSelectedCourseId}
+      />
+      <section className="study-dashboard study-workspace flashcards-workspace">
+        <div className="workspace-hero">
+          <div>
+            <p className="eyebrow">Flashcards</p>
+            <h2>
+              {selectedCourse
+                ? `${selectedCourse.code} active recall`
+                : 'Flashcards'}
+            </h2>
+            <p>One card at a time, with the answer hidden until you flip it.</p>
+          </div>
+          <div className="study-stats">
+            <span>{publishedFlashcards.length} cards</span>
+            <span>
+              {activeCard
+                ? lectureTitle(selectedCourse, activeCard.lectureSlug)
+                : 'No lecture'}
+            </span>
+          </div>
+        </div>
+
+        {activeCard ? (
+          <section className="study-tool-card full-tool">
+            <div className="tool-header">
+              <div>
+                <span>
+                  Card {flashcardIndex + 1} of {publishedFlashcards.length}
+                </span>
+                <h3>{lectureTitle(selectedCourse, activeCard.lectureSlug)}</h3>
+              </div>
+              <button
+                className="icon-button"
+                onClick={() => setFlashcardFlipped(false)}
+                title="Reset card"
+                type="button"
+              >
+                <RotateCcw size={17} />
+              </button>
+            </div>
+            <button
+              className={`flashcard-stage large ${
+                flashcardFlipped ? 'flipped' : ''
+              }`}
+              onClick={() => setFlashcardFlipped(!flashcardFlipped)}
+              type="button"
+            >
+              <span>{flashcardFlipped ? 'Answer' : 'Question'}</span>
+              <strong>
+                {cleanStudyText(
+                  flashcardFlipped ? activeCard.back : activeCard.front,
+                )}
+              </strong>
+              <small>Click to flip</small>
+            </button>
+            <div className="tool-actions deck-actions">
+              <button onClick={() => moveFlashcard(-1)} type="button">
+                <ChevronLeft size={17} /> Previous
+              </button>
+              <button
+                className="primary-button"
+                onClick={() => setFlashcardFlipped(!flashcardFlipped)}
+                type="button"
+              >
+                {flashcardFlipped ? 'Show question' : 'Show answer'}
+              </button>
+              <button onClick={() => moveFlashcard(1)} type="button">
+                Next <ChevronRight size={17} />
+              </button>
+            </div>
+          </section>
+        ) : (
+          <div className="empty-panel">
+            <Brain size={24} />
+            <strong>No flashcards for this course yet</strong>
+            <p>Published lecture flashcards will appear here automatically.</p>
+          </div>
+        )}
+      </section>
+    </main>
+  )
+}
+
+function QuizzesView({
+  state,
+  courses,
+  selectedCourse,
+  setSelectedCourseId,
+}: {
+  state: PortalState
+  courses: Course[]
+  selectedCourse: Course | null
+  setSelectedCourseId: (courseId: string) => void
+}) {
+  const [selectedQuizId, setSelectedQuizId] = useState<string | null>(null)
+  const [questionIndex, setQuestionIndex] = useState(0)
+  const [selectedAnswer, setSelectedAnswer] = useState('')
+  const [answerRevealed, setAnswerRevealed] = useState(false)
+  const publishedQuizzes = state.quizzes.filter(
+    (quiz) =>
+      quiz.status === 'published' &&
+      (!selectedCourse || quiz.courseId === selectedCourse.id),
+  )
+  const selectedQuiz =
+    publishedQuizzes.find((quiz) => quiz.id === selectedQuizId) ??
+    publishedQuizzes[0] ??
+    null
+  const quizQuestions = selectedQuiz
+    ? state.quizQuestions.filter(
+        (question) =>
+          question.quizId === selectedQuiz.id && question.status === 'published',
+      )
+    : []
+  const activeQuestion = quizQuestions[questionIndex] ?? null
+  const isCorrect =
+    activeQuestion &&
+    selectedAnswer.trim().toLowerCase() ===
+      activeQuestion.correctAnswer.trim().toLowerCase()
+
+  useEffect(() => {
+    setSelectedQuizId(null)
+    setQuestionIndex(0)
+    setSelectedAnswer('')
+    setAnswerRevealed(false)
+  }, [selectedCourse?.id])
+
+  useEffect(() => {
+    setQuestionIndex(0)
+    setSelectedAnswer('')
+    setAnswerRevealed(false)
+  }, [selectedQuiz?.id])
 
   function moveQuestion(direction: -1 | 1) {
     if (!quizQuestions.length) return
@@ -674,187 +874,202 @@ function StudyView({
 
   return (
     <main className="study-layout">
-      <aside className="course-rail">
-        <h2>Courses</h2>
-        {courses.map((course) => (
-          <button
-            className={course.id === selectedCourse?.id ? 'active' : ''}
-            key={course.id}
-            onClick={() => setSelectedCourseId(course.id)}
-            type="button"
-          >
-            <strong>{course.code}</strong>
-            <span>Study assets</span>
-          </button>
-        ))}
-      </aside>
-      <section className="study-dashboard">
-        <div className="section-title">
-          <Brain size={20} />
-          <h2>{selectedCourse ? `${selectedCourse.code} study` : 'Study'}</h2>
-        </div>
-        <div className="study-stats">
-          <span>{selectedCourseLectureCount} lectures</span>
-          <span>{publishedFlashcards.length} flashcards</span>
-          <span>{publishedQuizzes.length} quizzes</span>
-          <span>{publishedGuides.length} study guides</span>
-        </div>
-        {publishedFlashcards.length === 0 && publishedQuizzes.length === 0 ? (
-          <div className="empty-panel">
-            <Brain size={24} />
-            <strong>No study assets yet</strong>
-            <p>Published flashcards and quizzes from the lecture pipeline will appear here automatically.</p>
+      <StudyCourseRail
+        courses={courses}
+        selectedCourse={selectedCourse}
+        setSelectedCourseId={setSelectedCourseId}
+      />
+      <section className="study-dashboard study-workspace quizzes-workspace">
+        <div className="workspace-hero">
+          <div>
+            <p className="eyebrow">Quizzes</p>
+            <h2>
+              {selectedCourse ? `${selectedCourse.code} practice` : 'Quizzes'}
+            </h2>
+            <p>Pick a quiz, answer each question, then review the explanation.</p>
           </div>
-        ) : (
-          <div className="study-tools">
-            <section className="study-tool-card flashcard-tool">
-              <div className="tool-header">
-                <div>
-                  <span>Flashcards</span>
-                  <h3>
-                    {publishedFlashcards.length
-                      ? `${flashcardIndex + 1} of ${publishedFlashcards.length}`
-                      : 'No cards'}
-                  </h3>
-                </div>
-                <button
-                  className="icon-button"
-                  disabled={!publishedFlashcards.length}
-                  onClick={() => setFlashcardFlipped(false)}
-                  title="Reset card"
-                  type="button"
-                >
-                  <RotateCcw size={17} />
-                </button>
+          <div className="study-stats">
+            <span>{publishedQuizzes.length} quizzes</span>
+            <span>{quizQuestions.length} questions</span>
+          </div>
+        </div>
+        {publishedQuizzes.length > 1 && (
+          <div className="quiz-picker">
+            <label htmlFor="quiz-picker">Quiz</label>
+            <select
+              id="quiz-picker"
+              value={selectedQuiz?.id ?? ''}
+              onChange={(event) => setSelectedQuizId(event.target.value)}
+            >
+              {publishedQuizzes.map((quiz) => (
+                <option key={quiz.id} value={quiz.id}>
+                  {quiz.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {activeQuestion ? (
+          <section className="study-tool-card full-tool quiz-focus">
+            <div className="tool-header">
+              <div>
+                <span>
+                  Question {questionIndex + 1} of {quizQuestions.length}
+                </span>
+                <h3>{selectedQuiz?.title ?? 'Quiz'}</h3>
               </div>
-
-              {activeCard ? (
-                <>
-                  <button
-                    className={`flashcard-stage ${flashcardFlipped ? 'flipped' : ''}`}
-                    onClick={() => setFlashcardFlipped(!flashcardFlipped)}
-                    type="button"
-                  >
-                    <span>{flashcardFlipped ? 'Answer' : 'Question'}</span>
-                    <strong>
-                      {cleanStudyText(
-                        flashcardFlipped ? activeCard.back : activeCard.front,
-                      )}
-                    </strong>
-                    <small>Click to flip</small>
-                  </button>
-                  <div className="tool-actions">
-                    <button onClick={() => moveFlashcard(-1)} type="button">
-                      <ChevronLeft size={17} /> Previous
-                    </button>
+            </div>
+            <div className="quiz-question">
+              <strong>{cleanStudyText(activeQuestion.prompt)}</strong>
+              {activeQuestion.options.length ? (
+                <div className="quiz-options">
+                  {activeQuestion.options.map((option) => (
                     <button
-                      className="primary-button"
-                      onClick={() => setFlashcardFlipped(!flashcardFlipped)}
-                      type="button"
-                    >
-                      {flashcardFlipped ? 'Show question' : 'Show answer'}
-                    </button>
-                    <button onClick={() => moveFlashcard(1)} type="button">
-                      Next <ChevronRight size={17} />
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <div className="empty-panel compact">
-                  <strong>No flashcards for this course.</strong>
-                </div>
-              )}
-            </section>
-
-            <section className="study-tool-card quiz-tool">
-              <div className="tool-header">
-                <div>
-                  <span>Quizzes</span>
-                  <h3>{selectedQuiz?.title ?? 'No quiz selected'}</h3>
-                </div>
-                {publishedQuizzes.length > 1 && (
-                  <select
-                    value={selectedQuiz?.id ?? ''}
-                    onChange={(event) => setSelectedQuizId(event.target.value)}
-                  >
-                    {publishedQuizzes.map((quiz) => (
-                      <option key={quiz.id} value={quiz.id}>
-                        {quiz.title}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              {activeQuestion ? (
-                <div className="quiz-question">
-                  <span>
-                    Question {questionIndex + 1} of {quizQuestions.length}
-                  </span>
-                  <strong>{cleanStudyText(activeQuestion.prompt)}</strong>
-                  {activeQuestion.options.length ? (
-                    <div className="quiz-options">
-                      {activeQuestion.options.map((option) => (
-                        <button
-                          className={selectedAnswer === option ? 'selected' : ''}
-                          key={option}
-                          onClick={() => {
-                            setSelectedAnswer(option)
-                            setAnswerRevealed(false)
-                          }}
-                          type="button"
-                        >
-                          {cleanStudyText(option)}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <input
-                      onChange={(event) => {
-                        setSelectedAnswer(event.target.value)
+                      className={selectedAnswer === option ? 'selected' : ''}
+                      key={option}
+                      onClick={() => {
+                        setSelectedAnswer(option)
                         setAnswerRevealed(false)
                       }}
-                      placeholder="Type your answer"
-                      value={selectedAnswer}
-                    />
-                  )}
-                  <div className="tool-actions">
-                    <button onClick={() => moveQuestion(-1)} type="button">
-                      <ChevronLeft size={17} /> Previous
-                    </button>
-                    <button
-                      className="primary-button"
-                      disabled={!selectedAnswer.trim()}
-                      onClick={() => setAnswerRevealed(true)}
                       type="button"
                     >
-                      Check answer
+                      {cleanStudyText(option)}
                     </button>
-                    <button onClick={() => moveQuestion(1)} type="button">
-                      Next <ChevronRight size={17} />
-                    </button>
-                  </div>
-                  {answerRevealed && (
-                    <div className={`answer-panel ${isCorrect ? 'correct' : 'incorrect'}`}>
-                      {isCorrect ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
-                      <div>
-                        <strong>{isCorrect ? 'Correct' : 'Review this one'}</strong>
-                        <p>
-                          Answer: {cleanStudyText(activeQuestion.correctAnswer)}
-                        </p>
-                        {activeQuestion.explanation && (
-                          <p>{cleanStudyText(activeQuestion.explanation)}</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  ))}
                 </div>
               ) : (
-                <div className="empty-panel compact">
-                  <strong>No quiz questions for this course.</strong>
+                <input
+                  onChange={(event) => {
+                    setSelectedAnswer(event.target.value)
+                    setAnswerRevealed(false)
+                  }}
+                  placeholder="Type your answer"
+                  value={selectedAnswer}
+                />
+              )}
+              <div className="tool-actions">
+                <button onClick={() => moveQuestion(-1)} type="button">
+                  <ChevronLeft size={17} /> Previous
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={!selectedAnswer.trim()}
+                  onClick={() => setAnswerRevealed(true)}
+                  type="button"
+                >
+                  Check answer
+                </button>
+                <button onClick={() => moveQuestion(1)} type="button">
+                  Next <ChevronRight size={17} />
+                </button>
+              </div>
+              {answerRevealed && (
+                <div className={`answer-panel ${isCorrect ? 'correct' : 'incorrect'}`}>
+                  {isCorrect ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
+                  <div>
+                    <strong>{isCorrect ? 'Correct' : 'Review this one'}</strong>
+                    <p>Answer: {cleanStudyText(activeQuestion.correctAnswer)}</p>
+                    {activeQuestion.explanation && (
+                      <p>{cleanStudyText(activeQuestion.explanation)}</p>
+                    )}
+                  </div>
                 </div>
               )}
-            </section>
+            </div>
+          </section>
+        ) : (
+          <div className="empty-panel">
+            <ListChecks size={24} />
+            <strong>No quizzes for this course yet</strong>
+            <p>Published lecture quizzes will appear here automatically.</p>
+          </div>
+        )}
+      </section>
+    </main>
+  )
+}
+
+function GuidesView({
+  state,
+  courses,
+  selectedCourse,
+  setSelectedCourseId,
+}: {
+  state: PortalState
+  courses: Course[]
+  selectedCourse: Course | null
+  setSelectedCourseId: (courseId: string) => void
+}) {
+  const [selectedGuideId, setSelectedGuideId] = useState<string | null>(null)
+  const publishedGuides = state.studyGuides.filter(
+    (guide) =>
+      guide.status === 'published' &&
+      (!selectedCourse || guide.courseId === selectedCourse.id),
+  )
+  const activeGuide =
+    publishedGuides.find((guide) => guide.id === selectedGuideId) ??
+    publishedGuides[0] ??
+    null
+
+  useEffect(() => {
+    setSelectedGuideId(null)
+  }, [selectedCourse?.id])
+
+  return (
+    <main className="study-layout">
+      <StudyCourseRail
+        courses={courses}
+        selectedCourse={selectedCourse}
+        setSelectedCourseId={setSelectedCourseId}
+      />
+      <section className="study-dashboard study-workspace guides-workspace">
+        <div className="workspace-hero">
+          <div>
+            <p className="eyebrow">Guides</p>
+            <h2>
+              {selectedCourse ? `${selectedCourse.code} study guides` : 'Guides'}
+            </h2>
+            <p>Lecture summaries and concept guides in a dedicated reading space.</p>
+          </div>
+          <div className="study-stats">
+            <span>{publishedGuides.length} guides</span>
+          </div>
+        </div>
+        {activeGuide ? (
+          <div className="guides-grid">
+            <aside className="guide-list">
+              {publishedGuides.map((guide) => (
+                <button
+                  className={guide.id === activeGuide.id ? 'active' : ''}
+                  key={guide.id}
+                  onClick={() => setSelectedGuideId(guide.id)}
+                  type="button"
+                >
+                  <span>{lectureTitle(selectedCourse, guide.lectureSlug)}</span>
+                  <strong>{cleanStudyText(guide.title)}</strong>
+                </button>
+              ))}
+            </aside>
+            <article className="guide-reader">
+              <p className="eyebrow">
+                {selectedCourse?.code} ·{' '}
+                {lectureTitle(selectedCourse, activeGuide.lectureSlug)}
+              </p>
+              <h3>{cleanStudyText(activeGuide.title)}</h3>
+              {activeGuide.content
+                .split(/\n{2,}/)
+                .map((paragraph) => paragraph.trim())
+                .filter(Boolean)
+                .map((paragraph) => (
+                  <p key={paragraph}>{cleanStudyText(paragraph)}</p>
+                ))}
+            </article>
+          </div>
+        ) : (
+          <div className="empty-panel">
+            <FileText size={24} />
+            <strong>No study guides for this course yet</strong>
+            <p>Published lecture guides will appear here automatically.</p>
           </div>
         )}
       </section>

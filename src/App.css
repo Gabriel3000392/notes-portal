@@ -41,6 +41,7 @@
 .status-strip,
 .app-tabs,
 .reader-nav,
+.reader-toolbar,
 .section-title,
 .course-form {
   display: flex;
@@ -57,8 +58,10 @@
 .user-chip,
 .app-tabs button,
 .reader-nav button,
+.reader-toolbar button,
 .course-rail button,
 .lecture-rail button,
+.guide-list button,
 .primary-button,
 .link-button,
 .icon-button,
@@ -109,7 +112,8 @@
 .segmented button.active,
 .app-tabs button.active,
 .course-rail button.active,
-.lecture-rail button.active {
+.lecture-rail button.active,
+.guide-list button.active {
   background: var(--accent);
   color: white;
 }
@@ -146,7 +150,8 @@ textarea {
 .primary-button,
 .link-button,
 .lecture-form button,
-.reader-nav button {
+.reader-nav button,
+.reader-toolbar button {
   min-height: 40px;
   padding: 8px 12px;
   display: inline-flex;
@@ -236,6 +241,18 @@ textarea {
   align-items: start;
 }
 
+.notes-layout.hide-courses {
+  grid-template-columns: 310px minmax(0, 1fr);
+}
+
+.notes-layout.hide-lectures {
+  grid-template-columns: 180px minmax(0, 1fr);
+}
+
+.notes-layout.hide-courses.hide-lectures {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .study-layout {
   grid-template-columns: 180px minmax(0, 1fr);
 }
@@ -257,7 +274,8 @@ textarea {
 }
 
 .course-rail button,
-.lecture-rail button {
+.lecture-rail button,
+.guide-list button {
   width: 100%;
   display: grid;
   gap: 3px;
@@ -267,13 +285,15 @@ textarea {
 }
 
 .course-rail button span,
-.lecture-rail button span {
+.lecture-rail button span,
+.guide-list button span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
 }
 
-.lecture-rail button strong {
+.lecture-rail button strong,
+.guide-list button strong {
   line-height: 1.25;
 }
 
@@ -288,6 +308,48 @@ textarea {
   border-radius: 8px;
   background: var(--panel);
   padding: 16px;
+}
+
+.reader-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, .94);
+  backdrop-filter: blur(10px);
+}
+
+.study-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+.workspace-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: start;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfdff;
+  padding: 16px;
+}
+
+.workspace-hero h2,
+.workspace-hero p {
+  margin: 0;
+}
+
+.workspace-hero h2 {
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.workspace-hero p:not(.eyebrow) {
+  max-width: 620px;
+  margin-top: 6px;
+  color: var(--muted);
 }
 
 .study-stats,
@@ -340,6 +402,10 @@ textarea {
   padding: 16px;
 }
 
+.full-tool {
+  min-height: 440px;
+}
+
 .tool-header {
   display: flex;
   justify-content: space-between;
@@ -374,6 +440,11 @@ textarea {
   text-align: left;
 }
 
+.flashcard-stage.large {
+  min-height: 360px;
+  justify-items: start;
+}
+
 .flashcard-stage.flipped {
   background: linear-gradient(135deg, #f0fdf4 0%, #ecfeff 100%);
 }
@@ -382,6 +453,11 @@ textarea {
   max-width: 760px;
   font-size: 24px;
   line-height: 1.2;
+}
+
+.flashcard-stage.large strong {
+  max-width: 980px;
+  font-size: clamp(26px, 4vw, 42px);
 }
 
 .flashcard-stage small {
@@ -394,6 +470,10 @@ textarea {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
+}
+
+.deck-actions {
+  justify-content: space-between;
 }
 
 .tool-actions button,
@@ -435,6 +515,22 @@ textarea {
   background: #eff6ff;
 }
 
+.quiz-picker {
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  max-width: 720px;
+}
+
+.quiz-focus .quiz-question {
+  max-width: 900px;
+}
+
+.quiz-focus .quiz-question strong {
+  font-size: clamp(22px, 3vw, 34px);
+}
+
 .answer-panel {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr);
@@ -452,6 +548,40 @@ textarea {
 .answer-panel.incorrect {
   border-color: #fecaca;
   background: #fff7f7;
+}
+
+.guides-grid {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.guide-list {
+  display: grid;
+  gap: 8px;
+  max-height: calc(100vh - 260px);
+  overflow: auto;
+}
+
+.guide-reader {
+  min-height: 520px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: white;
+  padding: 22px;
+}
+
+.guide-reader h3 {
+  margin: 0 0 14px;
+  font-size: 28px;
+  line-height: 1.15;
+}
+
+.guide-reader p {
+  max-width: 860px;
+  color: #253247;
+  line-height: 1.65;
 }
 
 .answer-panel p {
@@ -787,14 +917,23 @@ th {
   .auth-layout,
   .admin-layout,
   .notes-layout,
-  .study-layout {
+  .notes-layout.hide-courses,
+  .notes-layout.hide-lectures,
+  .notes-layout.hide-courses.hide-lectures,
+  .study-layout,
+  .guides-grid {
     grid-template-columns: 1fr;
   }
 
   .course-rail,
-  .lecture-rail {
+  .lecture-rail,
+  .guide-list {
     position: static;
     max-height: none;
+  }
+
+  .workspace-hero {
+    display: grid;
   }
 
   .course-form,
