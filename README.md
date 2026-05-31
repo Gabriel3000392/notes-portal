@@ -35,8 +35,12 @@ Open the printed local URL. With Supabase env vars configured, sign in with an a
 
 1. Create a Supabase project.
 2. Run `supabase/schema.sql` in the Supabase SQL editor.
-3. Copy `.env.example` to `.env.local`.
-4. Fill in frontend variables:
+3. In Supabase, go to Authentication -> Providers -> Email and turn off
+   **Confirm email**. This portal uses admin approval instead of email
+   confirmation, and leaving confirmation on can hit Supabase's email rate
+   limit during testing.
+4. Copy `.env.example` to `.env.local`.
+5. Fill in frontend variables:
 
 ```bash
 VITE_SUPABASE_URL=

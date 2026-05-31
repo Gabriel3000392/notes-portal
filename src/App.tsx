@@ -114,6 +114,14 @@ function isQuizAnswerCorrect(userAnswer: string, correctAnswer: string) {
   return coverage >= 0.65 || precision >= 0.75
 }
 
+function formatAuthError(message: string) {
+  const lower = message.toLowerCase()
+  if (lower.includes('rate limit') || lower.includes('email rate')) {
+    return 'Supabase hit its confirmation-email rate limit. Turn off Auth > Providers > Email > Confirm email in Supabase, then try signing up again.'
+  }
+  return message
+}
+
 type AppView = 'notes' | 'flashcards' | 'quizzes' | 'guides' | 'admin'
 
 function App() {
@@ -425,12 +433,14 @@ function AuthScreen({
             })
 
       if (result.error) {
-        setMessage(result.error.message)
+        setMessage(formatAuthError(result.error.message))
         return
       }
 
       if (mode === 'signup' && !result.data.session) {
-        setMessage('Account created. Check your email if Supabase asks you to confirm it, then sign in here.')
+        setMessage(
+          'Account created, but Supabase email confirmation is still enabled. Turn off Auth > Providers > Email > Confirm email so new users go straight to pending approval.',
+        )
         return
       }
 
