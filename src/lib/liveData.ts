@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { sortPortalStateLectures } from './sort'
 import type {
   AiGenerationJob,
   DraftStatus,
@@ -170,7 +171,7 @@ export async function fetchLivePortalState(userId: string) {
     enrolmentsByUser.set(enrolment.user_id, existing)
   }
 
-  const state: PortalState = {
+  const state: PortalState = sortPortalStateLectures({
     courses: courses
       .sort((a, b) => a.code.localeCompare(b.code))
       .map((course) => ({
@@ -181,7 +182,7 @@ export async function fetchLivePortalState(userId: string) {
         active: course.active,
         lectures: lectures
           .filter((lecture) => lecture.course_id === course.id)
-          .sort((a, b) => a.sort_order - b.sort_order)
+          .sort(compareDbLecturesByDate)
           .map((lecture) => ({
             slug: lecture.slug,
             date: lecture.lecture_date ?? '',
@@ -258,7 +259,7 @@ export async function fetchLivePortalState(userId: string) {
       error: item.error,
       createdAt: item.created_at,
     })),
-  }
+  })
 
   return {
     currentUser:
@@ -357,4 +358,12 @@ function emptyState(): PortalState {
     studyGuides: [],
     aiGenerationJobs: [],
   }
+}
+
+function compareDbLecturesByDate(a: DbLecture, b: DbLecture) {
+  const dateCompare = (a.lecture_date ?? '').localeCompare(b.lecture_date ?? '')
+  if (dateCompare !== 0) return dateCompare
+  const orderCompare = a.sort_order - b.sort_order
+  if (orderCompare !== 0) return orderCompare
+  return a.title.localeCompare(b.title)
 }

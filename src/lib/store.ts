@@ -1,4 +1,5 @@
 import { seedCourses } from '../data/seedCourses'
+import { sortPortalStateLectures } from './sort'
 import type { Course, PortalState, PortalUser } from './types'
 
 const stateKey = 'notes-portal-state-v1'
@@ -22,7 +23,7 @@ export function makeInitialState(): PortalState {
     createdAt: now(),
   }
 
-  return {
+  return sortPortalStateLectures({
     courses,
     users: [admin],
     flashcards: [],
@@ -31,7 +32,7 @@ export function makeInitialState(): PortalState {
     lectureTags: [],
     studyGuides: [],
     aiGenerationJobs: [],
-  }
+  })
 }
 
 export function loadState(): PortalState {
@@ -43,7 +44,7 @@ export function loadState(): PortalState {
     if (!Array.isArray(parsed.courses) || !Array.isArray(parsed.users)) {
       return makeInitialState()
     }
-    return {
+    return sortPortalStateLectures({
       ...parsed,
       flashcards: parsed.flashcards ?? [],
       quizzes: parsed.quizzes ?? [],
@@ -51,7 +52,7 @@ export function loadState(): PortalState {
       lectureTags: parsed.lectureTags ?? [],
       studyGuides: parsed.studyGuides ?? [],
       aiGenerationJobs: parsed.aiGenerationJobs ?? [],
-    }
+    })
   } catch {
     return makeInitialState()
   }
