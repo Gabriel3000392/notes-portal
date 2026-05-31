@@ -276,6 +276,53 @@ export async function fetchLivePortalState(userId: string) {
   }
 }
 
+export async function saveLiveUserAccess(user: PortalUser) {
+  if (!supabase) throw new Error('Supabase is not configured')
+
+  const { error: profileError } = await supabase
+    .from('profiles')
+    .update({
+      name: user.name,
+      role: user.role,
+      status: user.status,
+    })
+    .eq('id', user.id)
+
+  if (profileError) throw profileError
+
+  const { error: deleteError } = await supabase
+    .from('enrolments')
+    .delete()
+    .eq('user_id', user.id)
+
+  if (deleteError) throw deleteError
+
+  if (user.courseIds.length) {
+    const { error: insertError } = await supabase.from('enrolments').insert(
+      user.courseIds.map((courseId) => ({
+        user_id: user.id,
+        course_id: courseId,
+      })),
+    )
+
+    if (insertError) throw insertError
+  }
+}
+
+export async function createPendingProfile(userId: string, email: string, name: string) {
+  if (!supabase) throw new Error('Supabase is not configured')
+
+  const { error } = await supabase.from('profiles').upsert({
+    id: userId,
+    email,
+    name,
+    role: 'student',
+    status: 'pending',
+  })
+
+  if (error) throw error
+}
+
 async function selectAll<T>(table: string, columns: string): Promise<T[]> {
   if (!supabase) throw new Error('Supabase is not configured')
 

@@ -1,39 +1,41 @@
 import {
   BookOpen,
   Brain,
-  Check,
   ChevronLeft,
   ChevronRight,
-  ClipboardCheck,
+  CheckCircle2,
   Library,
   LogOut,
-  Plus,
+  RotateCcw,
   Shield,
-  Sparkles,
-  Tags,
+  UserCheck,
   UserMinus,
   Users,
+  XCircle,
 } from 'lucide-react'
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
-import { fetchLivePortalState } from './lib/liveData'
-import { generateMockStudyPackage } from './lib/mockAi'
+import {
+  createPendingProfile,
+  fetchLivePortalState,
+  saveLiveUserAccess,
+} from './lib/liveData'
 import {
   loadSessionId,
   loadState,
   saveSessionId,
   saveState,
 } from './lib/store'
-import type { Course, DraftStatus, LectureSeed, PortalState, PortalUser } from './lib/types'
+import type { Course, LectureSeed, PortalState, PortalUser } from './lib/types'
 
-const makeId = (value: string) =>
+const cleanStudyText = (value: string) =>
   value
+    .replace(/\*\*/g, '')
+    .replace(/^Flashcard\s*/i, '')
+    .replace(/^Quiz\s*/i, '')
     .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
 
 function App() {
   const [state, setState] = useState<PortalState>(() => loadState())
@@ -212,6 +214,13 @@ function App() {
         >
           <BookOpen size={17} /> Notes
         </button>
+        <button
+          className={view === 'study' ? 'active' : ''}
+          onClick={() => setView('study')}
+          type="button"
+        >
+          <Brain size={17} /> Study
+        </button>
         {currentUser.role === 'admin' && (
           <button
             className={view === 'admin' ? 'active' : ''}
@@ -221,13 +230,6 @@ function App() {
             <Shield size={17} /> Admin
           </button>
         )}
-        <button
-          className={view === 'study' ? 'active' : ''}
-          onClick={() => setView('study')}
-          type="button"
-        >
-          <Brain size={17} /> Study
-        </button>
       </div>
 
       {view === 'admin' && currentUser.role === 'admin' ? (
@@ -312,6 +314,23 @@ function AuthScreen({
       if (mode === 'signup' && !result.data.session) {
         setMessage('Account created. Check your email if Supabase asks you to confirm it, then sign in here.')
         return
+      }
+
+      if (mode === 'signup' && result.data.user) {
+        try {
+          await createPendingProfile(
+            result.data.user.id,
+            normalEmail,
+            name.trim() || normalEmail.split('@')[0],
+          )
+        } catch (error) {
+          setMessage(
+            error instanceof Error
+              ? `Account created, but pending profile was not saved: ${error.message}`
+              : 'Account created, but pending profile was not saved.',
+          )
+          return
+        }
       }
 
       await onLiveAuthSuccess()
@@ -575,6 +594,13 @@ function StudyView({
   selectedCourse: Course | null
   setSelectedCourseId: (courseId: string) => void
 }) {
+  const [flashcardIndex, setFlashcardIndex] = useState(0)
+  const [flashcardFlipped, setFlashcardFlipped] = useState(false)
+  const [selectedQuizId, setSelectedQuizId] = useState<string | null>(null)
+  const [questionIndex, setQuestionIndex] = useState(0)
+  const [selectedAnswer, setSelectedAnswer] = useState('')
+  const [answerRevealed, setAnswerRevealed] = useState(false)
+
   const publishedFlashcards = state.flashcards.filter(
     (card) =>
       card.status === 'published' &&
@@ -590,6 +616,61 @@ function StudyView({
       guide.status === 'published' &&
       (!selectedCourse || guide.courseId === selectedCourse.id),
   )
+  const selectedQuiz =
+    publishedQuizzes.find((quiz) => quiz.id === selectedQuizId) ??
+    publishedQuizzes[0] ??
+    null
+  const quizQuestions = selectedQuiz
+    ? state.quizQuestions.filter(
+        (question) =>
+          question.quizId === selectedQuiz.id && question.status === 'published',
+      )
+    : []
+  const activeCard = publishedFlashcards[flashcardIndex] ?? null
+  const activeQuestion = quizQuestions[questionIndex] ?? null
+  const isCorrect =
+    activeQuestion &&
+    selectedAnswer.trim().toLowerCase() ===
+      activeQuestion.correctAnswer.trim().toLowerCase()
+  const selectedCourseLectureCount = selectedCourse?.lectures.length ?? 0
+
+  useEffect(() => {
+    setFlashcardIndex(0)
+    setFlashcardFlipped(false)
+    setSelectedQuizId(null)
+    setQuestionIndex(0)
+    setSelectedAnswer('')
+    setAnswerRevealed(false)
+  }, [selectedCourse?.id])
+
+  useEffect(() => {
+    setQuestionIndex(0)
+    setSelectedAnswer('')
+    setAnswerRevealed(false)
+  }, [selectedQuiz?.id])
+
+  function moveFlashcard(direction: -1 | 1) {
+    if (!publishedFlashcards.length) return
+    setFlashcardIndex((current) => {
+      const next = current + direction
+      if (next < 0) return publishedFlashcards.length - 1
+      if (next >= publishedFlashcards.length) return 0
+      return next
+    })
+    setFlashcardFlipped(false)
+  }
+
+  function moveQuestion(direction: -1 | 1) {
+    if (!quizQuestions.length) return
+    setQuestionIndex((current) => {
+      const next = current + direction
+      if (next < 0) return quizQuestions.length - 1
+      if (next >= quizQuestions.length) return 0
+      return next
+    })
+    setSelectedAnswer('')
+    setAnswerRevealed(false)
+  }
 
   return (
     <main className="study-layout">
@@ -613,41 +694,167 @@ function StudyView({
           <h2>{selectedCourse ? `${selectedCourse.code} study` : 'Study'}</h2>
         </div>
         <div className="study-stats">
+          <span>{selectedCourseLectureCount} lectures</span>
           <span>{publishedFlashcards.length} flashcards</span>
           <span>{publishedQuizzes.length} quizzes</span>
           <span>{publishedGuides.length} study guides</span>
         </div>
         {publishedFlashcards.length === 0 && publishedQuizzes.length === 0 ? (
           <div className="empty-panel">
-            <Sparkles size={24} />
-            <strong>No published AI study assets yet</strong>
-            <p>Generate drafts in Admin, review them, then publish.</p>
+            <Brain size={24} />
+            <strong>No study assets yet</strong>
+            <p>Published flashcards and quizzes from the lecture pipeline will appear here automatically.</p>
           </div>
         ) : (
-          <div className="study-grid">
-            {publishedFlashcards.slice(0, 8).map((card) => (
-              <article className="asset-card" key={card.id}>
-                <span>Flashcard</span>
-                <strong>{card.front}</strong>
-                <p>{card.back}</p>
-              </article>
-            ))}
-            {publishedQuizzes.map((quiz) => (
-              <article className="asset-card" key={quiz.id}>
-                <span>Quiz</span>
-                <strong>{quiz.title}</strong>
-                <p>
-                  {
-                    state.quizQuestions.filter(
-                      (question) =>
-                        question.quizId === quiz.id &&
-                        question.status === 'published',
-                    ).length
-                  }{' '}
-                  questions
-                </p>
-              </article>
-            ))}
+          <div className="study-tools">
+            <section className="study-tool-card flashcard-tool">
+              <div className="tool-header">
+                <div>
+                  <span>Flashcards</span>
+                  <h3>
+                    {publishedFlashcards.length
+                      ? `${flashcardIndex + 1} of ${publishedFlashcards.length}`
+                      : 'No cards'}
+                  </h3>
+                </div>
+                <button
+                  className="icon-button"
+                  disabled={!publishedFlashcards.length}
+                  onClick={() => setFlashcardFlipped(false)}
+                  title="Reset card"
+                  type="button"
+                >
+                  <RotateCcw size={17} />
+                </button>
+              </div>
+
+              {activeCard ? (
+                <>
+                  <button
+                    className={`flashcard-stage ${flashcardFlipped ? 'flipped' : ''}`}
+                    onClick={() => setFlashcardFlipped(!flashcardFlipped)}
+                    type="button"
+                  >
+                    <span>{flashcardFlipped ? 'Answer' : 'Question'}</span>
+                    <strong>
+                      {cleanStudyText(
+                        flashcardFlipped ? activeCard.back : activeCard.front,
+                      )}
+                    </strong>
+                    <small>Click to flip</small>
+                  </button>
+                  <div className="tool-actions">
+                    <button onClick={() => moveFlashcard(-1)} type="button">
+                      <ChevronLeft size={17} /> Previous
+                    </button>
+                    <button
+                      className="primary-button"
+                      onClick={() => setFlashcardFlipped(!flashcardFlipped)}
+                      type="button"
+                    >
+                      {flashcardFlipped ? 'Show question' : 'Show answer'}
+                    </button>
+                    <button onClick={() => moveFlashcard(1)} type="button">
+                      Next <ChevronRight size={17} />
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="empty-panel compact">
+                  <strong>No flashcards for this course.</strong>
+                </div>
+              )}
+            </section>
+
+            <section className="study-tool-card quiz-tool">
+              <div className="tool-header">
+                <div>
+                  <span>Quizzes</span>
+                  <h3>{selectedQuiz?.title ?? 'No quiz selected'}</h3>
+                </div>
+                {publishedQuizzes.length > 1 && (
+                  <select
+                    value={selectedQuiz?.id ?? ''}
+                    onChange={(event) => setSelectedQuizId(event.target.value)}
+                  >
+                    {publishedQuizzes.map((quiz) => (
+                      <option key={quiz.id} value={quiz.id}>
+                        {quiz.title}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {activeQuestion ? (
+                <div className="quiz-question">
+                  <span>
+                    Question {questionIndex + 1} of {quizQuestions.length}
+                  </span>
+                  <strong>{cleanStudyText(activeQuestion.prompt)}</strong>
+                  {activeQuestion.options.length ? (
+                    <div className="quiz-options">
+                      {activeQuestion.options.map((option) => (
+                        <button
+                          className={selectedAnswer === option ? 'selected' : ''}
+                          key={option}
+                          onClick={() => {
+                            setSelectedAnswer(option)
+                            setAnswerRevealed(false)
+                          }}
+                          type="button"
+                        >
+                          {cleanStudyText(option)}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <input
+                      onChange={(event) => {
+                        setSelectedAnswer(event.target.value)
+                        setAnswerRevealed(false)
+                      }}
+                      placeholder="Type your answer"
+                      value={selectedAnswer}
+                    />
+                  )}
+                  <div className="tool-actions">
+                    <button onClick={() => moveQuestion(-1)} type="button">
+                      <ChevronLeft size={17} /> Previous
+                    </button>
+                    <button
+                      className="primary-button"
+                      disabled={!selectedAnswer.trim()}
+                      onClick={() => setAnswerRevealed(true)}
+                      type="button"
+                    >
+                      Check answer
+                    </button>
+                    <button onClick={() => moveQuestion(1)} type="button">
+                      Next <ChevronRight size={17} />
+                    </button>
+                  </div>
+                  {answerRevealed && (
+                    <div className={`answer-panel ${isCorrect ? 'correct' : 'incorrect'}`}>
+                      {isCorrect ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
+                      <div>
+                        <strong>{isCorrect ? 'Correct' : 'Review this one'}</strong>
+                        <p>
+                          Answer: {cleanStudyText(activeQuestion.correctAnswer)}
+                        </p>
+                        {activeQuestion.explanation && (
+                          <p>{cleanStudyText(activeQuestion.explanation)}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="empty-panel compact">
+                  <strong>No quiz questions for this course.</strong>
+                </div>
+              )}
+            </section>
           </div>
         )}
       </section>
@@ -662,219 +869,152 @@ function AdminPanel({
   state: PortalState
   setState: (state: PortalState) => void
 }) {
-  const [courseDraft, setCourseDraft] = useState({
-    code: '',
-    title: '',
-    term: '2026 S2',
-  })
-  const [lectureDrafts, setLectureDrafts] = useState<Record<string, LectureSeed>>(
-    {},
-  )
-  const [generationTarget, setGenerationTarget] = useState({
-    courseId: state.courses[0]?.id ?? '',
-    lectureSlug: state.courses[0]?.lectures[0]?.slug ?? '',
-  })
+  const [savingUserId, setSavingUserId] = useState<string | null>(null)
+  const [saveMessage, setSaveMessage] = useState('')
 
-  function updateUser(userId: string, patch: Partial<PortalUser>) {
+  async function updateUser(userId: string, patch: Partial<PortalUser>) {
+    const current = state.users.find((user) => user.id === userId)
+    if (!current) return
+
+    const nextUser = { ...current, ...patch }
     setState({
       ...state,
-      users: state.users.map((user) =>
-        user.id === userId ? { ...user, ...patch } : user,
-      ),
+      users: state.users.map((user) => (user.id === userId ? nextUser : user)),
     })
-  }
 
-  function addCourse(event: FormEvent) {
-    event.preventDefault()
-    const code = courseDraft.code.trim().toUpperCase()
-    const id = makeId(code)
-    if (!code || state.courses.some((course) => course.id === id)) return
+    if (!isSupabaseConfigured) return
 
-    setState({
-      ...state,
-      courses: [
-        ...state.courses,
-        {
-          id,
-          code,
-          title: courseDraft.title.trim() || code,
-          term: courseDraft.term.trim() || 'Unspecified term',
-          active: true,
-          lectures: [],
-        },
-      ],
-    })
-    setCourseDraft({ code: '', title: '', term: '2026 S2' })
-  }
-
-  function addLecture(course: Course) {
-    const draft = lectureDrafts[course.id]
-    if (!draft?.title.trim()) return
-    const slug = makeId(`${draft.date || 'undated'}-${draft.title}`)
-    const lecture: LectureSeed = {
-      ...draft,
-      slug,
-      contentHtml:
-        draft.contentHtml.trim() ||
-        '<h2>Notes</h2><p>Add lecture notes from the admin panel.</p>',
+    setSavingUserId(userId)
+    setSaveMessage('')
+    try {
+      await saveLiveUserAccess(nextUser)
+      setSaveMessage(`Saved ${nextUser.email}`)
+    } catch (error) {
+      setSaveMessage(
+        error instanceof Error ? error.message : 'Could not save user access',
+      )
+    } finally {
+      setSavingUserId(null)
     }
-    setState({
-      ...state,
-      courses: state.courses.map((item) =>
-        item.id === course.id
-          ? { ...item, lectures: [...item.lectures, lecture] }
-          : item,
-      ),
-    })
-    setLectureDrafts({ ...lectureDrafts, [course.id]: blankLecture() })
   }
 
-  function setAssetStatus(status: DraftStatus) {
-    setState({
-      ...state,
-      flashcards: state.flashcards.map((item) =>
-        item.status === 'draft' ? { ...item, status } : item,
-      ),
-      quizzes: state.quizzes.map((item) =>
-        item.status === 'draft' ? { ...item, status } : item,
-      ),
-      quizQuestions: state.quizQuestions.map((item) =>
-        item.status === 'draft' ? { ...item, status } : item,
-      ),
-      lectureTags: state.lectureTags.map((item) =>
-        item.status === 'draft' ? { ...item, status } : item,
-      ),
-      studyGuides: state.studyGuides.map((item) =>
-        item.status === 'draft' ? { ...item, status } : item,
-      ),
-    })
-  }
-
-  function generateDraftPackage() {
-    const course =
-      state.courses.find((item) => item.id === generationTarget.courseId) ??
-      state.courses[0]
-    const lecture =
-      course?.lectures.find(
-        (item) => item.slug === generationTarget.lectureSlug,
-      ) ?? course?.lectures[0]
-    if (!course || !lecture) return
-
-    const generated = generateMockStudyPackage(course, lecture)
-    setState({
-      ...state,
-      aiGenerationJobs: [generated.job, ...state.aiGenerationJobs],
-      flashcards: [...generated.flashcards, ...state.flashcards],
-      quizzes: [generated.quiz, ...state.quizzes],
-      quizQuestions: [...generated.quizQuestions, ...state.quizQuestions],
-      lectureTags: [...generated.lectureTags, ...state.lectureTags],
-      studyGuides: [generated.studyGuide, ...state.studyGuides],
-    })
-  }
-
-  const activeGenerationCourse =
-    state.courses.find((course) => course.id === generationTarget.courseId) ??
-    state.courses[0]
-  const draftSummary = {
-    flashcards: state.flashcards.filter((item) => item.status === 'draft')
-      .length,
-    quizzes: state.quizzes.filter((item) => item.status === 'draft').length,
-    questions: state.quizQuestions.filter((item) => item.status === 'draft')
-      .length,
-    tags: state.lectureTags.filter((item) => item.status === 'draft').length,
-    guides: state.studyGuides.filter((item) => item.status === 'draft').length,
-  }
-  const draftCount = Object.values(draftSummary).reduce(
-    (total, count) => total + count,
-    0,
-  )
+  const pendingUsers = state.users.filter((user) => user.status === 'pending')
+  const approvedUsers = state.users.filter((user) => user.status === 'approved')
+  const disabledUsers = state.users.filter((user) => user.status === 'disabled')
+  const publishedAssetCount =
+    state.flashcards.filter((item) => item.status === 'published').length +
+    state.quizzes.filter((item) => item.status === 'published').length +
+    state.quizQuestions.filter((item) => item.status === 'published').length +
+    state.lectureTags.filter((item) => item.status === 'published').length +
+    state.studyGuides.filter((item) => item.status === 'published').length
 
   return (
     <main className="admin-layout">
-      <section className="admin-section publish-panel">
+      <section className="admin-hero">
         <div className="section-title">
-          <Check size={20} />
-          <h2>Review & Publish</h2>
+          <Shield size={22} />
+          <h2>Admin</h2>
         </div>
-        <p className="admin-note">
-          Publish after spot-checking the imported notes, flashcards, quizzes,
-          tags, and study guides.
+        <p>
+          Approve new accounts, disable access, and choose which courses each
+          student can see.
         </p>
-        <div className="study-stats">
-          <span>{draftSummary.flashcards} flashcards</span>
-          <span>{draftSummary.quizzes} quizzes</span>
-          <span>{draftSummary.questions} questions</span>
-          <span>{draftSummary.tags} tags</span>
-          <span>{draftSummary.guides} study guides</span>
+        <div className="admin-metrics">
+          <span>
+            <strong>{pendingUsers.length}</strong>
+            Pending
+          </span>
+          <span>
+            <strong>{approvedUsers.length}</strong>
+            Approved
+          </span>
+          <span>
+            <strong>{disabledUsers.length}</strong>
+            Disabled
+          </span>
+          <span>
+            <strong>{publishedAssetCount}</strong>
+            Published study assets
+          </span>
         </div>
-        <div className="draft-actions draft-actions-large">
-          <span>{draftCount} draft assets waiting</span>
-          <button
-            className="primary-button"
-            disabled={!draftCount}
-            onClick={() => setAssetStatus('published')}
-            type="button"
-          >
-            <Check size={18} /> Publish all draft assets
-          </button>
-          <button
-            disabled={!draftCount}
-            onClick={() => setAssetStatus('archived')}
-            type="button"
-          >
-            Archive all drafts
-          </button>
-        </div>
+        {saveMessage && <p className="save-message">{saveMessage}</p>}
       </section>
 
       <section className="admin-section">
         <div className="section-title">
           <Users size={20} />
-          <h2>People</h2>
+          <h2>Accounts</h2>
         </div>
-        <div className="table-list">
+        <div className="people-list">
           {state.users.map((user) => (
-            <div className="person-row" key={user.id}>
-              <div>
-                <strong>{user.name}</strong>
-                <span>{user.email}</span>
+            <article className={`person-row ${user.status}`} key={user.id}>
+              <div className="person-main">
+                <div className="person-avatar">
+                  {user.name.slice(0, 1).toUpperCase()}
+                </div>
+                <div>
+                  <strong>{user.name}</strong>
+                  <span>{user.email}</span>
+                  <small>
+                    {user.status} · {user.role}
+                  </small>
+                </div>
               </div>
-              <select
-                value={user.role}
-                onChange={(e) =>
-                  updateUser(user.id, {
-                    role: e.target.value as PortalUser['role'],
-                  })
-                }
-              >
-                <option value="student">student</option>
-                <option value="admin">admin</option>
-              </select>
-              <select
-                value={user.status}
-                onChange={(e) =>
-                  updateUser(user.id, {
-                    status: e.target.value as PortalUser['status'],
-                  })
-                }
-              >
-                <option value="approved">approved</option>
-                <option value="pending">pending</option>
-                <option value="disabled">disabled</option>
-              </select>
-              <button
-                className="icon-button"
-                onClick={() =>
-                  setState({
-                    ...state,
-                    users: state.users.filter((item) => item.id !== user.id),
-                  })
-                }
-                title="Remove user"
-                type="button"
-              >
-                <UserMinus size={17} />
-              </button>
+              <div className="person-controls">
+                <select
+                  value={user.role}
+                  onChange={(e) =>
+                    void updateUser(user.id, {
+                      role: e.target.value as PortalUser['role'],
+                      courseIds:
+                        e.target.value === 'admin'
+                          ? state.courses.map((course) => course.id)
+                          : user.courseIds,
+                    })
+                  }
+                >
+                  <option value="student">student</option>
+                  <option value="admin">admin</option>
+                </select>
+                <select
+                  value={user.status}
+                  onChange={(e) =>
+                    void updateUser(user.id, {
+                      status: e.target.value as PortalUser['status'],
+                    })
+                  }
+                >
+                  <option value="approved">approved</option>
+                  <option value="pending">pending</option>
+                  <option value="disabled">disabled</option>
+                </select>
+                {user.status === 'pending' && (
+                  <button
+                    className="primary-button"
+                    disabled={savingUserId === user.id}
+                    onClick={() =>
+                      void updateUser(user.id, {
+                        status: 'approved',
+                        courseIds: user.courseIds.length
+                          ? user.courseIds
+                          : state.courses.map((course) => course.id),
+                      })
+                    }
+                    type="button"
+                  >
+                    <UserCheck size={17} /> Approve
+                  </button>
+                )}
+                <button
+                  className="icon-button"
+                  disabled={savingUserId === user.id}
+                  onClick={() => void updateUser(user.id, { status: 'disabled' })}
+                  title="Disable user"
+                  type="button"
+                >
+                  <UserMinus size={17} />
+                </button>
+              </div>
               <div className="course-access">
                 {state.courses.map((course) => {
                   const checked =
@@ -888,261 +1028,52 @@ function AdminPanel({
                           const courseIds = event.target.checked
                             ? [...user.courseIds, course.id]
                             : user.courseIds.filter((id) => id !== course.id)
-                          updateUser(user.id, { courseIds })
+                          void updateUser(user.id, { courseIds })
                         }}
                         type="checkbox"
                       />
-                      {course.code}
+                      <span>
+                        <strong>{course.code}</strong>
+                        {course.title}
+                      </span>
                     </label>
                   )
                 })}
               </div>
-            </div>
+            </article>
           ))}
         </div>
-      </section>
-
-      <section className="admin-section">
-        <div className="section-title">
-          <Sparkles size={20} />
-          <h2>AI Drafts</h2>
-        </div>
-        <div className="generation-panel">
-          <select
-            value={activeGenerationCourse?.id ?? ''}
-            onChange={(event) => {
-              const nextCourse = state.courses.find(
-                (course) => course.id === event.target.value,
-              )
-              setGenerationTarget({
-                courseId: event.target.value,
-                lectureSlug: nextCourse?.lectures[0]?.slug ?? '',
-              })
-            }}
-          >
-            {state.courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.code}
-              </option>
-            ))}
-          </select>
-          <select
-            value={generationTarget.lectureSlug}
-            onChange={(event) =>
-              setGenerationTarget({
-                ...generationTarget,
-                lectureSlug: event.target.value,
-              })
-            }
-          >
-            {activeGenerationCourse?.lectures.map((lecture) => (
-              <option key={lecture.slug} value={lecture.slug}>
-                {lecture.date} · {lecture.title}
-              </option>
-            ))}
-          </select>
-          <button className="primary-button" onClick={generateDraftPackage} type="button">
-            <Sparkles size={17} /> Generate draft package
-          </button>
-        </div>
-        <div className="draft-actions">
-          <span>{draftCount} draft assets waiting</span>
-          <button disabled={!draftCount} onClick={() => setAssetStatus('published')} type="button">
-            <Check size={17} /> Publish drafts
-          </button>
-          <button disabled={!draftCount} onClick={() => setAssetStatus('archived')} type="button">
-            Archive drafts
-          </button>
-        </div>
-        <DraftReview state={state} />
       </section>
 
       <section className="admin-section">
         <div className="section-title">
           <Library size={20} />
-          <h2>Courses</h2>
+          <h2>Course access</h2>
         </div>
-        <form className="course-form" onSubmit={addCourse}>
-          <input
-            onChange={(e) =>
-              setCourseDraft({ ...courseDraft, code: e.target.value })
-            }
-            placeholder="CODE101"
-            value={courseDraft.code}
-          />
-          <input
-            onChange={(e) =>
-              setCourseDraft({ ...courseDraft, title: e.target.value })
-            }
-            placeholder="Course title"
-            value={courseDraft.title}
-          />
-          <input
-            onChange={(e) =>
-              setCourseDraft({ ...courseDraft, term: e.target.value })
-            }
-            placeholder="Term"
-            value={courseDraft.term}
-          />
-          <button className="primary-button" type="submit">
-            <Plus size={17} /> Add course
-          </button>
-        </form>
-
-        <div className="course-admin-list">
-          {state.courses.map((course) => {
-            const draft = lectureDrafts[course.id] ?? blankLecture()
-            return (
-              <details key={course.id}>
-                <summary>
-                  <span>
-                    <strong>{course.code}</strong> {course.title}
-                  </span>
-                  <span>{course.lectures.length} lectures</span>
-                </summary>
-                <div className="course-editor">
-                  <label>
-                    Published
-                    <input
-                      checked={course.active}
-                      onChange={(e) =>
-                        setState({
-                          ...state,
-                          courses: state.courses.map((item) =>
-                            item.id === course.id
-                              ? { ...item, active: e.target.checked }
-                              : item,
-                          ),
-                        })
-                      }
-                      type="checkbox"
-                    />
-                  </label>
-                  <div className="lecture-form">
-                    <input
-                      onChange={(e) =>
-                        setLectureDrafts({
-                          ...lectureDrafts,
-                          [course.id]: { ...draft, date: e.target.value },
-                        })
-                      }
-                      placeholder="YYYY-MM-DD"
-                      value={draft.date}
-                    />
-                    <input
-                      onChange={(e) =>
-                        setLectureDrafts({
-                          ...lectureDrafts,
-                          [course.id]: { ...draft, title: e.target.value },
-                        })
-                      }
-                      placeholder="Lecture title"
-                      value={draft.title}
-                    />
-                    <textarea
-                      onChange={(e) =>
-                        setLectureDrafts({
-                          ...lectureDrafts,
-                          [course.id]: {
-                            ...draft,
-                            contentHtml: e.target.value,
-                          },
-                        })
-                      }
-                      placeholder="<h2>Topic</h2><p>Notes...</p>"
-                      value={draft.contentHtml}
-                    />
-                    <button onClick={() => addLecture(course)} type="button">
-                      <Check size={17} /> Add lecture
-                    </button>
-                  </div>
-                </div>
-              </details>
-            )
-          })}
+        <div className="course-overview-grid">
+          {state.courses.map((course) => (
+            <article className="course-overview-card" key={course.id}>
+              <div>
+                <strong>{course.code}</strong>
+                <span>{course.title}</span>
+              </div>
+              <p>{course.lectures.length} lectures</p>
+              <p>
+                {
+                  state.users.filter(
+                    (user) =>
+                      user.status === 'approved' &&
+                      (user.role === 'admin' || user.courseIds.includes(course.id)),
+                  ).length
+                }{' '}
+                approved users
+              </p>
+            </article>
+          ))}
         </div>
       </section>
     </main>
   )
-}
-
-function DraftReview({ state }: { state: PortalState }) {
-  const draftFlashcards = state.flashcards.filter((item) => item.status === 'draft')
-  const draftQuizzes = state.quizzes.filter((item) => item.status === 'draft')
-  const draftTags = state.lectureTags.filter((item) => item.status === 'draft')
-  const draftGuides = state.studyGuides.filter((item) => item.status === 'draft')
-  const latestJobs = state.aiGenerationJobs.slice(0, 4)
-
-  return (
-    <div className="draft-review">
-      <div className="draft-column">
-        <h3>
-          <Brain size={17} /> Flashcards
-        </h3>
-        {draftFlashcards.slice(0, 4).map((card) => (
-          <article className="draft-card" key={card.id}>
-            <strong>{card.front}</strong>
-            <p>{card.back}</p>
-          </article>
-        ))}
-      </div>
-      <div className="draft-column">
-        <h3>
-          <ClipboardCheck size={17} /> Quizzes
-        </h3>
-        {draftQuizzes.slice(0, 3).map((quiz) => (
-          <article className="draft-card" key={quiz.id}>
-            <strong>{quiz.title}</strong>
-            <p>
-              {
-                state.quizQuestions.filter(
-                  (question) => question.quizId === quiz.id,
-                ).length
-              }{' '}
-              draft questions
-            </p>
-          </article>
-        ))}
-      </div>
-      <div className="draft-column">
-        <h3>
-          <Tags size={17} /> Tags & guides
-        </h3>
-        <div className="tag-list">
-          {draftTags.slice(0, 10).map((tag) => (
-            <span key={tag.id}>{tag.tag}</span>
-          ))}
-        </div>
-        {draftGuides.slice(0, 2).map((guide) => (
-          <article className="draft-card" key={guide.id}>
-            <strong>{guide.title}</strong>
-            <p>{guide.content.split('\n').slice(0, 2).join(' ')}</p>
-          </article>
-        ))}
-      </div>
-      <div className="draft-column">
-        <h3>
-          <Sparkles size={17} /> Jobs
-        </h3>
-        {latestJobs.map((job) => (
-          <article className="draft-card" key={job.id}>
-            <strong>{job.status}</strong>
-            <p>{job.promptVersion}</p>
-          </article>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function blankLecture(): LectureSeed {
-  return {
-    slug: '',
-    date: '',
-    title: '',
-    subtitle: '',
-    contentHtml: '',
-  }
 }
 
 export default App

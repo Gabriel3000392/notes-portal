@@ -155,6 +155,14 @@ on public.profiles for all
 using (public.is_admin())
 with check (public.is_admin());
 
+create policy "Users can create their own pending profile"
+on public.profiles for insert
+with check (
+  id = auth.uid()
+  and role = 'student'
+  and status = 'pending'
+);
+
 create policy "Approved users can read active courses they are enrolled in"
 on public.courses for select
 using (
