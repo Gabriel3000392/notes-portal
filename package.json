@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "export:supabase-snapshot": "node scripts/export-supabase-snapshot.mjs",
     "generate:exam-quiz": "node scripts/generate-exam-quiz-package.mjs",
+    "generate:exam-crops": "node scripts/generate-exam-question-crops.mjs",
     "import:exam-quiz": "node scripts/import-exam-quiz-package.mjs",
     "import:lecture": "node scripts/import-lecture-package.mjs",
     "publish:supabase-assets": "node scripts/publish-supabase-assets.mjs",
