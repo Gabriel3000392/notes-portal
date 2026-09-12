@@ -117,15 +117,23 @@ export async function fetchLivePortalState(userId: string) {
       id: string
       quiz_id: string
       type: QuizQuestion['type']
+      original_type: QuizQuestion['originalType'] | null
       prompt: string
       options: string[]
       correct_answer: string
       explanation: string
+      marks: number | null
+      topics: string[]
+      assets: QuizQuestion['assets']
+      source_ref: QuizQuestion['sourceRef']
+      answer_source: string
+      converted_to_multiple_choice: boolean
+      confidence: QuizQuestion['confidence']
       status: DraftStatus
       created_by_ai: boolean
     }>(
       'quiz_questions',
-      'id, quiz_id, type, prompt, options, correct_answer, explanation, status, created_by_ai',
+      'id, quiz_id, type, original_type, prompt, options, correct_answer, explanation, marks, topics, assets, source_ref, answer_source, converted_to_multiple_choice, confidence, status, created_by_ai',
     ),
     selectAll<{
       id: string
@@ -224,10 +232,18 @@ export async function fetchLivePortalState(userId: string) {
       id: item.id,
       quizId: item.quiz_id,
       type: item.type,
+      originalType: item.original_type ?? undefined,
       prompt: item.prompt,
       options: item.options,
       correctAnswer: item.correct_answer,
       explanation: item.explanation,
+      marks: item.marks,
+      topics: item.topics ?? [],
+      assets: item.assets ?? [],
+      sourceRef: item.source_ref ?? null,
+      answerSource: item.answer_source ?? '',
+      convertedToMultipleChoice: item.converted_to_multiple_choice,
+      confidence: item.confidence ?? 'verified',
       status: item.status,
       createdByAi: item.created_by_ai,
     })),

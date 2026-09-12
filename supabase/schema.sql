@@ -89,10 +89,18 @@ create table public.quiz_questions (
   id uuid primary key default gen_random_uuid(),
   quiz_id uuid not null references public.quizzes(id) on delete cascade,
   type public.quiz_question_type not null,
+  original_type text,
   prompt text not null,
   options jsonb not null default '[]'::jsonb,
   correct_answer text not null,
   explanation text not null,
+  marks numeric,
+  topics jsonb not null default '[]'::jsonb,
+  assets jsonb not null default '[]'::jsonb,
+  source_ref jsonb,
+  answer_source text not null default '',
+  converted_to_multiple_choice boolean not null default false,
+  confidence text not null default 'verified',
   status public.asset_status not null default 'draft',
   created_by_ai boolean not null default true
 );

@@ -80,7 +80,38 @@
                       "items": { "type": "string" }
                     },
                     "correctAnswer": { "type": "string" },
-                    "explanation": { "type": "string" }
+                    "explanation": { "type": "string" },
+                    "originalType": { "type": "string" },
+                    "marks": { "type": ["number", "null"] },
+                    "topics": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "assets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["id", "kind", "label", "alt"],
+                        "properties": {
+                          "id": { "type": "string" },
+                          "kind": {
+                            "type": "string",
+                            "enum": ["source_crop", "clean_image", "chem_svg", "html"]
+                          },
+                          "label": { "type": "string" },
+                          "url": { "type": "string" },
+                          "svg": { "type": "string" },
+                          "html": { "type": "string" },
+                          "alt": { "type": "string" },
+                          "source": { "type": "string" },
+                          "confidence": { "type": "string" }
+                        }
+                      }
+                    },
+                    "sourceRef": { "type": ["object", "null"] },
+                    "answerSource": { "type": "string" },
+                    "convertedToMultipleChoice": { "type": "boolean" },
+                    "confidence": { "type": "string" }
                   }
                 }
               }

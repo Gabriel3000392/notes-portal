@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://notes-portal.local/exam-quiz-package.schema.json",
+  "title": "Exam Quiz Package",
+  "type": "object",
+  "required": ["source", "course", "exam", "quiz"],
+  "properties": {
+    "source": {
+      "type": "object",
+      "required": ["system", "id", "files"],
+      "properties": {
+        "system": { "type": "string", "enum": ["exam_prep"] },
+        "id": { "type": "string" },
+        "generatedAt": { "type": "string" },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "role"],
+            "properties": {
+              "path": { "type": "string" },
+              "role": {
+                "type": "string",
+                "enum": ["questions", "answers", "combined", "unknown"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "course": {
+      "type": "object",
+      "required": ["code", "title", "term"],
+      "properties": {
+        "code": { "type": "string" },
+        "title": { "type": "string" },
+        "term": { "type": "string" }
+      }
+    },
+    "exam": {
+      "type": "object",
+      "required": ["slug", "title"],
+      "properties": {
+        "slug": { "type": "string" },
+        "title": { "type": "string" },
+        "year": { "type": ["integer", "null"] },
+        "semester": { "type": ["string", "null"] },
+        "assessment": { "type": "string" }
+      }
+    },
+    "quiz": {
+      "type": "object",
+      "required": ["title", "questions"],
+      "properties": {
+        "title": { "type": "string" },
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "prompt", "options", "correctAnswer", "explanation"],
+            "properties": {
+              "type": { "type": "string", "enum": ["multiple_choice"] },
+              "originalType": { "type": "string" },
+              "prompt": { "type": "string" },
+              "options": {
+                "type": "array",
+                "minItems": 2,
+                "items": { "type": "string" }
+              },
+              "correctAnswer": { "type": "string" },
+              "explanation": { "type": "string" },
+              "marks": { "type": ["number", "null"] },
+              "topics": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "assets": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "kind", "label", "alt"],
+                  "properties": {
+                    "id": { "type": "string" },
+                    "kind": {
+                      "type": "string",
+                      "enum": ["source_crop", "clean_image", "chem_svg", "html"]
+                    },
+                    "label": { "type": "string" },
+                    "url": { "type": "string" },
+                    "svg": { "type": "string" },
+                    "html": { "type": "string" },
+                    "alt": { "type": "string" },
+                    "source": { "type": "string" },
+                    "confidence": {
+                      "type": "string",
+                      "enum": ["verified", "needs_review", "generated"]
+                    }
+                  }
+                }
+              },
+              "sourceRef": { "type": ["object", "null"] },
+              "answerSource": { "type": "string" },
+              "convertedToMultipleChoice": { "type": "boolean" },
+              "confidence": {
+                "type": "string",
+                "enum": ["verified", "needs_review", "generated"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "audit": {
+      "type": "object",
+      "properties": {
+        "warnings": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

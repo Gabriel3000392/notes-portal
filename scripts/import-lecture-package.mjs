@@ -120,10 +120,18 @@ for (const quiz of pkg.studyAssets.quizzes ?? []) {
   const questions = quiz.questions.map((question) => ({
     quiz_id: insertedQuiz.id,
     type: question.type,
+    original_type: question.originalType ?? null,
     prompt: question.prompt,
     options: question.options ?? [],
     correct_answer: question.correctAnswer,
     explanation: question.explanation,
+    marks: question.marks ?? null,
+    topics: question.topics ?? [],
+    assets: question.assets ?? [],
+    source_ref: question.sourceRef ?? null,
+    answer_source: question.answerSource ?? '',
+    converted_to_multiple_choice: question.convertedToMultipleChoice ?? false,
+    confidence: question.confidence ?? 'verified',
     status,
     created_by_ai: true,
   }))

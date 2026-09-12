@@ -4,6 +4,27 @@ export type DraftStatus = 'draft' | 'published' | 'archived'
 export type QuizQuestionType = 'multiple_choice' | 'short_answer'
 export type AiGenerationStatus = 'queued' | 'running' | 'succeeded' | 'failed'
 
+export type QuizQuestionAsset = {
+  id: string
+  kind: 'source_crop' | 'clean_image' | 'chem_svg' | 'html'
+  label: string
+  url?: string
+  svg?: string
+  html?: string
+  alt: string
+  source?: string
+  confidence?: 'verified' | 'needs_review' | 'generated'
+}
+
+export type QuizSourceRef = {
+  paper: string
+  page?: number
+  question?: string
+  part?: string
+  answerPaper?: string
+  answerPage?: number
+}
+
 export type LectureSeed = {
   slug: string
   date: string
@@ -60,10 +81,18 @@ export type QuizQuestion = {
   id: string
   quizId: string
   type: QuizQuestionType
+  originalType?: QuizQuestionType | 'calculation' | 'diagram' | 'multi_part'
   prompt: string
   options: string[]
   correctAnswer: string
   explanation: string
+  marks?: number | null
+  topics?: string[]
+  assets?: QuizQuestionAsset[]
+  sourceRef?: QuizSourceRef | null
+  answerSource?: string
+  convertedToMultipleChoice?: boolean
+  confidence?: 'verified' | 'needs_review' | 'generated'
   status: DraftStatus
   createdByAi: boolean
 }

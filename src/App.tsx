@@ -37,7 +37,13 @@ import {
   saveSessionId,
   saveState,
 } from './lib/store'
-import type { Course, LectureSeed, PortalState, PortalUser } from './lib/types'
+import type {
+  Course,
+  LectureSeed,
+  PortalState,
+  PortalUser,
+  QuizQuestionAsset,
+} from './lib/types'
 
 const cleanStudyText = (value: string) =>
   value
@@ -114,10 +120,47 @@ function isQuizAnswerCorrect(userAnswer: string, correctAnswer: string) {
   return coverage >= 0.65 || precision >= 0.75
 }
 
+function questionSourceLabel(sourceRef: NonNullable<PortalState['quizQuestions'][number]['sourceRef']>) {
+  const parts = [sourceRef.paper]
+  if (sourceRef.question) parts.push(`Q${sourceRef.question}`)
+  if (sourceRef.part) parts.push(`part ${sourceRef.part}`)
+  if (sourceRef.page) parts.push(`page ${sourceRef.page}`)
+  return parts.join(' · ')
+}
+
+function QuestionAsset({ asset }: { asset: QuizQuestionAsset }) {
+  return (
+    <figure className={`question-asset ${asset.kind}`}>
+      {asset.url ? (
+        <img alt={asset.alt} src={asset.url} />
+      ) : asset.svg ? (
+        <div
+          aria-label={asset.alt}
+          className="question-asset-inline"
+          dangerouslySetInnerHTML={{ __html: asset.svg }}
+          role="img"
+        />
+      ) : asset.html ? (
+        <div
+          className="question-asset-inline"
+          dangerouslySetInnerHTML={{ __html: asset.html }}
+        />
+      ) : null}
+      <figcaption>
+        <span>{asset.label}</span>
+        {asset.confidence && <small>{asset.confidence.replaceAll('_', ' ')}</small>}
+      </figcaption>
+    </figure>
+  )
+}
+
 function formatAuthError(message: string) {
   const lower = message.toLowerCase()
   if (lower.includes('rate limit') || lower.includes('email rate')) {
     return 'Supabase hit its confirmation-email rate limit. Turn off Auth > Providers > Email > Confirm email in Supabase, then try signing up again.'
+  }
+  if (lower.includes('failed to fetch') || lower.includes('name_not_resolved')) {
+    return 'Supabase is unreachable from this deployment. Check that the Supabase project is active and that Vercel has the correct VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.'
   }
   return message
 }
@@ -180,16 +223,27 @@ function App() {
       }
     }
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (cancelled) return
-      const userId = data.session?.user.id
-      setSessionId(userId ?? null)
-      if (userId) void loadLiveState(userId)
-      else {
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (cancelled) return
+        const userId = data.session?.user.id
+        setSessionId(userId ?? null)
+        if (userId) void loadLiveState(userId)
+        else {
+          setLiveUser(null)
+          setAuthLoading(false)
+        }
+      })
+      .catch((error) => {
+        if (cancelled) return
+        setSessionId(null)
         setLiveUser(null)
+        setAuthError(
+          formatAuthError(error instanceof Error ? error.message : 'Supabase session failed'),
+        )
         setAuthLoading(false)
-      }
-    })
+      })
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       const userId = session?.user.id ?? null
@@ -242,13 +296,21 @@ function App() {
           setLiveUser(null)
         }}
         onLiveAuthSuccess={async () => {
-          const session = await supabase?.auth.getSession()
-          const userId = session?.data.session?.user.id
-          if (!userId) return
-          const live = await fetchLivePortalState(userId)
-          setState(live.state)
-          setLiveUser(live.currentUser)
-          setSessionId(userId)
+          try {
+            const session = await supabase?.auth.getSession()
+            const userId = session?.data.session?.user.id
+            if (!userId) return
+            const live = await fetchLivePortalState(userId)
+            setState(live.state)
+            setLiveUser(live.currentUser)
+            setSessionId(userId)
+          } catch (error) {
+            setAuthError(
+              formatAuthError(
+                error instanceof Error ? error.message : 'Supabase session failed',
+              ),
+            )
+          }
         }}
         authLoading={authLoading}
         authError={authError}
@@ -420,17 +482,25 @@ function AuthScreen({
         return
       }
 
-      const result =
-        mode === 'signin'
-          ? await supabase.auth.signInWithPassword({
-              email: normalEmail,
-              password,
-            })
-          : await supabase.auth.signUp({
-              email: normalEmail,
-              password,
-              options: { data: { name: name.trim() || normalEmail.split('@')[0] } },
-            })
+      let result
+      try {
+        result =
+          mode === 'signin'
+            ? await supabase.auth.signInWithPassword({
+                email: normalEmail,
+                password,
+              })
+            : await supabase.auth.signUp({
+                email: normalEmail,
+                password,
+                options: { data: { name: name.trim() || normalEmail.split('@')[0] } },
+              })
+      } catch (error) {
+        setMessage(
+          formatAuthError(error instanceof Error ? error.message : 'Supabase auth failed'),
+        )
+        return
+      }
 
       if (result.error) {
         setMessage(formatAuthError(result.error.message))
@@ -810,10 +880,12 @@ function FlashcardsView({
   )
   const activeCard = publishedFlashcards[flashcardIndex] ?? null
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setFlashcardIndex(0)
     setFlashcardFlipped(false)
   }, [selectedCourse?.id])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function moveFlashcard(direction: -1 | 1) {
     if (!publishedFlashcards.length) return
@@ -950,6 +1022,7 @@ function QuizzesView({
     activeQuestion &&
     isQuizAnswerCorrect(selectedAnswer, activeQuestion.correctAnswer)
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setSelectedQuizId(null)
     setQuestionIndex(0)
@@ -962,6 +1035,7 @@ function QuizzesView({
     setSelectedAnswer('')
     setAnswerRevealed(false)
   }, [selectedQuiz?.id])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function moveQuestion(direction: -1 | 1) {
     if (!quizQuestions.length) return
@@ -1023,7 +1097,37 @@ function QuizzesView({
               </div>
             </div>
             <div className="quiz-question">
+              <div className="question-meta">
+                {activeQuestion.sourceRef && (
+                  <span>{questionSourceLabel(activeQuestion.sourceRef)}</span>
+                )}
+                {typeof activeQuestion.marks === 'number' && (
+                  <span>
+                    {activeQuestion.marks} mark{activeQuestion.marks === 1 ? '' : 's'}
+                  </span>
+                )}
+                {activeQuestion.convertedToMultipleChoice && (
+                  <span>converted to multiple choice</span>
+                )}
+                {activeQuestion.confidence === 'needs_review' && (
+                  <span className="review-flag">needs review</span>
+                )}
+              </div>
               <strong>{cleanStudyText(activeQuestion.prompt)}</strong>
+              {!!activeQuestion.assets?.length && (
+                <div className="question-assets">
+                  {activeQuestion.assets.map((asset) => (
+                    <QuestionAsset asset={asset} key={asset.id} />
+                  ))}
+                </div>
+              )}
+              {!!activeQuestion.topics?.length && (
+                <div className="topic-chips">
+                  {activeQuestion.topics.map((topic) => (
+                    <span key={topic}>{topic}</span>
+                  ))}
+                </div>
+              )}
               {activeQuestion.options.length ? (
                 <div className="quiz-options">
                   {activeQuestion.options.map((option) => (
@@ -1075,6 +1179,9 @@ function QuizzesView({
                     {activeQuestion.explanation && (
                       <p>{cleanStudyText(activeQuestion.explanation)}</p>
                     )}
+                    {activeQuestion.answerSource && (
+                      <small>{cleanStudyText(activeQuestion.answerSource)}</small>
+                    )}
                   </div>
                 </div>
               )}
@@ -1114,9 +1221,11 @@ function GuidesView({
     publishedGuides[0] ??
     null
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setSelectedGuideId(null)
   }, [selectedCourse?.id])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
     <main className="study-layout">
