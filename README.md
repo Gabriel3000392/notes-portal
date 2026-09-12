@@ -1,24 +1,20 @@
-# Notes Portal
+# Exam Quiz Portal
 
-Separate authenticated app for Gabriel's lecture notes. The original static folders are left untouched:
-
-- `../lectures/`
-- `../lecture-notes-public/`
+Separate authenticated app for Gabriel's private exam-practice quizzes.
 
 ## Current State
 
-This app is a Supabase-backed lecture notes and study portal with:
+This app is a Supabase-backed exam quiz portal with:
 
 - real Supabase email/password auth
 - approved/admin account flow
-- student course and lecture reader
-- previous / next lecture navigation
-- admin panel for users, course access, courses, and new lecture creation
-- AI study assets for flashcards, quizzes, tags, and study guides
-- draft review and publish/archive flow
+- student course and quiz access
+- admin panel for users, course access, and courses
+- imported exam MCQ packages with source references, marks, topics, and diagram assets
+- publish/archive flow
 - live Supabase data loading
 - production schema
-- lecture-package JSON contract for the private downloader pipeline
+- exam-quiz-package JSON contract for the private exam pipeline
 
 Without Supabase env vars, the app runs in local demo mode and stores admin changes in browser `localStorage`.
 
@@ -83,24 +79,24 @@ Publish/output directory:
 dist
 ```
 
-## Private Pipeline Contract
+## Exam Quiz Pipeline Contract
 
-The OpenClaw LXC lecture worker should export one JSON package per lecture using:
+The exam ingestion worker should export one JSON package per paper using:
 
 ```text
-docs/lecture-package.schema.json
+docs/exam-quiz-package.schema.json
 ```
 
 Then import it with:
 
 ```bash
-SUPABASE_URL=... SUPABASE_SECRET_KEY=... npm run import:lecture -- package.json
+SUPABASE_URL=... SUPABASE_SECRET_KEY=... IMPORT_ASSET_STATUS=published npm run import:exam-quiz -- package.json
 ```
 
-The import script upserts the course and lecture, then writes flashcards, quizzes,
-questions, tags, study guides, and a generation job. Imported study assets default
-to `published` so new lecture downloader output appears without manual approval.
-Set `IMPORT_ASSET_STATUS=draft` before running the importer if a batch needs review.
+The import script upserts the course and exam container, then writes the quiz,
+questions, source metadata, diagram assets, and a generation job. Imported study
+assets default to `draft`; set `IMPORT_ASSET_STATUS=published` for approved quiz
+packages.
 
 For local review without exposing the Supabase secret key to the browser, export a
 static snapshot after importing:
@@ -113,4 +109,5 @@ This writes `public/supabase-snapshot.json`, which the Vite app loads on startup
 
 ## Production Security Note
 
-Do not deploy the old static HTML notes as public files if account control matters. The production version should serve note content from Supabase under Row Level Security, not from directly reachable static URLs.
+Do not deploy source PDFs or old static HTML study material as public files. The
+production version should serve quiz data from Supabase under Row Level Security.

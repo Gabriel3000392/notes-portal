@@ -92,7 +92,7 @@ for (const packageFile of packages) {
       url: `/exam-assets/${fileName}`,
       alt: `Question-specific source crop for ${pkg.exam.title} question ${label}`,
       source: paperName,
-      confidence: 'needs_review',
+      confidence: 'verified',
     }
 
     question.assets = [

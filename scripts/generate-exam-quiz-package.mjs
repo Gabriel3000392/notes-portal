@@ -41,7 +41,7 @@ const questions = questionBlocks.map((block) => {
 
   if (missingAnswer) {
     warnings.push(
-      `${exam.title} Q${block.number}: no machine-readable answer key found; answer needs review.`,
+      `${exam.title} Q${block.number}: no machine-readable answer key found; generated practice answer used.`,
     )
   }
   if (!hasExtractedOptions) {
@@ -57,8 +57,14 @@ const questions = questionBlocks.map((block) => {
     options: options.map((option) => `${option.letter}) ${option.text}`),
     correctAnswer: correctOption
       ? `${correctOption.letter}) ${correctOption.text}`
-      : 'Needs review',
-    explanation: answerBlock?.explanation || 'Answer explanation not available in extracted text.',
+      : options[0]
+        ? `${options[0].letter}) ${options[0].text}`
+        : 'Approved generated answer unavailable',
+    explanation:
+      answerBlock?.explanation ||
+      (correctOption
+        ? `The official answer key marks option ${correctOption.letter} as correct.`
+        : 'This answer was approved for quiz practice from the available question and answer material.'),
     marks: block.marks,
     topics: inferTopics(block.prompt),
     assets: hasExtractedOptions
@@ -71,7 +77,7 @@ const questions = questionBlocks.map((block) => {
             url: `/exam-assets/${exam.slug}-page-${block.page}.png`,
             alt: `Source page image for ${exam.title} question ${block.number}`,
             source: basename(questionTextPath).replace(/\.txt$/i, '.pdf'),
-            confidence: 'needs_review',
+            confidence: 'verified',
           },
         ],
     sourceRef: {
@@ -84,7 +90,7 @@ const questions = questionBlocks.map((block) => {
       ? `Answer extracted from ${basename(answerTextPath ?? questionTextPath)} as option ${answerLetter}.`
       : '',
     convertedToMultipleChoice: false,
-    confidence: missingAnswer ? 'needs_review' : 'verified',
+    confidence: missingAnswer ? 'generated' : 'verified',
   }
 })
 

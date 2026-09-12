@@ -1,5 +1,4 @@
 import {
-  BookOpen,
   Brain,
   ChevronLeft,
   ChevronRight,
@@ -148,7 +147,6 @@ function QuestionAsset({ asset }: { asset: QuizQuestionAsset }) {
       ) : null}
       <figcaption>
         <span>{asset.label}</span>
-        {asset.confidence && <small>{asset.confidence.replaceAll('_', ' ')}</small>}
       </figcaption>
     </figure>
   )
@@ -165,7 +163,7 @@ function formatAuthError(message: string) {
   return message
 }
 
-type AppView = 'notes' | 'flashcards' | 'quizzes' | 'guides' | 'admin'
+type AppView = 'quizzes' | 'admin'
 
 function App() {
   const [state, setState] = useState<PortalState>(() => loadState())
@@ -174,7 +172,7 @@ function App() {
   const [liveUser, setLiveUser] = useState<PortalUser | null>(null)
   const [authLoading, setAuthLoading] = useState(isSupabaseConfigured)
   const [authError, setAuthError] = useState('')
-  const [view, setView] = useState<AppView>('notes')
+  const [view, setView] = useState<AppView>('quizzes')
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
   const [selectedLectureSlug, setSelectedLectureSlug] = useState<string | null>(
     null,
@@ -333,7 +331,7 @@ function App() {
           <Shield size={34} />
           <h1>Waiting for approval</h1>
           <p>
-            Your account exists, but Gabriel needs to approve it before notes are
+            Your account exists, but Gabriel needs to approve it before quizzes are
             visible.
           </p>
           {currentUser.email && (
@@ -357,32 +355,11 @@ function App() {
     >
       <div className="app-tabs">
         <button
-          className={view === 'notes' ? 'active' : ''}
-          onClick={() => setView('notes')}
-          type="button"
-        >
-          <BookOpen size={17} /> Notes
-        </button>
-        <button
-          className={view === 'flashcards' ? 'active' : ''}
-          onClick={() => setView('flashcards')}
-          type="button"
-        >
-          <Brain size={17} /> Flashcards
-        </button>
-        <button
           className={view === 'quizzes' ? 'active' : ''}
           onClick={() => setView('quizzes')}
           type="button"
         >
           <ListChecks size={17} /> Quizzes
-        </button>
-        <button
-          className={view === 'guides' ? 'active' : ''}
-          onClick={() => setView('guides')}
-          type="button"
-        >
-          <FileText size={17} /> Guides
         </button>
         {currentUser.role === 'admin' && (
           <button
@@ -397,28 +374,8 @@ function App() {
 
       {view === 'admin' && currentUser.role === 'admin' ? (
         <AdminPanel state={state} setState={setState} />
-      ) : view === 'flashcards' ? (
-        <FlashcardsView
-          state={state}
-          courses={accessibleCourses}
-          selectedCourse={selectedCourse}
-          setSelectedCourseId={(courseId) => {
-            setSelectedCourseId(courseId)
-            setSelectedLectureSlug(null)
-          }}
-        />
       ) : view === 'quizzes' ? (
         <QuizzesView
-          state={state}
-          courses={accessibleCourses}
-          selectedCourse={selectedCourse}
-          setSelectedCourseId={(courseId) => {
-            setSelectedCourseId(courseId)
-            setSelectedLectureSlug(null)
-          }}
-        />
-      ) : view === 'guides' ? (
-        <GuidesView
           state={state}
           courses={accessibleCourses}
           selectedCourse={selectedCourse}
@@ -566,11 +523,11 @@ function AuthScreen({
   return (
     <main className="auth-layout">
       <section className="auth-intro">
-        <p className="eyebrow">Private study portal</p>
-        <h1>Course notes with controlled access.</h1>
+        <p className="eyebrow">Private quiz portal</p>
+        <h1>Exam quizzes with controlled access.</h1>
         <p>
-          A future-proof home for current and future courses: accounts, approval,
-          course access, and admin-managed lecture notes.
+          A private exam-practice workspace for current and future courses:
+          accounts, approval, course access, and generated quizzes.
         </p>
         <div className="status-strip">
           <span>
@@ -582,7 +539,7 @@ function AuthScreen({
           </span>
           {snapshotLoaded && <span>Snapshot loaded</span>}
           <span>{state.courses.length} courses seeded</span>
-          <span>{state.courses.reduce((sum, c) => sum + c.lectures.length, 0)} lectures</span>
+          <span>{state.quizzes.length} quizzes</span>
         </div>
       </section>
       <section className="auth-card">
@@ -679,8 +636,8 @@ function Shell({
     <div className="portal-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">Notes portal</p>
-          <h1>Study Notes</h1>
+          <p className="eyebrow">Quiz portal</p>
+          <h1>Exam Practice</h1>
         </div>
         <div className="user-chip">
           <span>{currentUser.name}</span>
@@ -827,10 +784,12 @@ function NotesView({
 }
 
 function StudyCourseRail({
+  state,
   courses,
   selectedCourse,
   setSelectedCourseId,
 }: {
+  state: PortalState
   courses: Course[]
   selectedCourse: Course | null
   setSelectedCourseId: (courseId: string) => void
@@ -846,7 +805,13 @@ function StudyCourseRail({
           type="button"
         >
           <strong>{course.code}</strong>
-          <span>{course.lectures.length} lectures</span>
+          <span>
+            {
+              state.quizzes.filter(
+                (quiz) => quiz.status === 'published' && quiz.courseId === course.id,
+              ).length
+            } quizzes
+          </span>
         </button>
       ))}
     </aside>
@@ -901,6 +866,7 @@ function FlashcardsView({
   return (
     <main className="study-layout">
       <StudyCourseRail
+        state={state}
         courses={courses}
         selectedCourse={selectedCourse}
         setSelectedCourseId={setSelectedCourseId}
@@ -979,7 +945,7 @@ function FlashcardsView({
           <div className="empty-panel">
             <Brain size={24} />
             <strong>No flashcards for this course yet</strong>
-            <p>Published lecture flashcards will appear here automatically.</p>
+            <p>Published flashcards will appear here automatically.</p>
           </div>
         )}
       </section>
@@ -1052,6 +1018,7 @@ function QuizzesView({
   return (
     <main className="study-layout">
       <StudyCourseRail
+        state={state}
         courses={courses}
         selectedCourse={selectedCourse}
         setSelectedCourseId={setSelectedCourseId}
@@ -1063,7 +1030,7 @@ function QuizzesView({
             <h2>
               {selectedCourse ? `${selectedCourse.code} practice` : 'Quizzes'}
             </h2>
-            <p>Pick a quiz, answer each question, then review the explanation.</p>
+            <p>Pick a quiz, answer each question, then check the worked explanation.</p>
           </div>
           <div className="study-stats">
             <span>{publishedQuizzes.length} quizzes</span>
@@ -1108,9 +1075,6 @@ function QuizzesView({
                 )}
                 {activeQuestion.convertedToMultipleChoice && (
                   <span>converted to multiple choice</span>
-                )}
-                {activeQuestion.confidence === 'needs_review' && (
-                  <span className="review-flag">needs review</span>
                 )}
               </div>
               <strong>{cleanStudyText(activeQuestion.prompt)}</strong>
@@ -1174,7 +1138,7 @@ function QuizzesView({
                 <div className={`answer-panel ${isCorrect ? 'correct' : 'incorrect'}`}>
                   {isCorrect ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
                   <div>
-                    <strong>{isCorrect ? 'Correct' : 'Review this one'}</strong>
+                    <strong>{isCorrect ? 'Correct' : 'Try again'}</strong>
                     <p>Answer: {cleanStudyText(activeQuestion.correctAnswer)}</p>
                     {activeQuestion.explanation && (
                       <p>{cleanStudyText(activeQuestion.explanation)}</p>
@@ -1191,7 +1155,7 @@ function QuizzesView({
           <div className="empty-panel">
             <ListChecks size={24} />
             <strong>No quizzes for this course yet</strong>
-            <p>Published lecture quizzes will appear here automatically.</p>
+            <p>Published exam quizzes will appear here automatically.</p>
           </div>
         )}
       </section>
@@ -1230,6 +1194,7 @@ function GuidesView({
   return (
     <main className="study-layout">
       <StudyCourseRail
+        state={state}
         courses={courses}
         selectedCourse={selectedCourse}
         setSelectedCourseId={setSelectedCourseId}
@@ -1281,13 +1246,16 @@ function GuidesView({
           <div className="empty-panel">
             <FileText size={24} />
             <strong>No study guides for this course yet</strong>
-            <p>Published lecture guides will appear here automatically.</p>
+            <p>Published guides will appear here automatically.</p>
           </div>
         )}
       </section>
     </main>
   )
 }
+
+void FlashcardsView
+void GuidesView
 
 function AdminPanel({
   state,

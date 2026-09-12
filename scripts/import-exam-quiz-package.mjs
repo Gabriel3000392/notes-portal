@@ -129,7 +129,7 @@ const questions = pkg.quiz.questions.map((question) => ({
   source_ref: question.sourceRef ?? null,
   answer_source: question.answerSource ?? '',
   converted_to_multiple_choice: question.convertedToMultipleChoice ?? false,
-  confidence: question.confidence ?? 'needs_review',
+  confidence: question.confidence ?? 'generated',
   status,
   created_by_ai: true,
 }))
