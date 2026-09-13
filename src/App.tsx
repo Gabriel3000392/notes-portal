@@ -1,4 +1,5 @@
 import {
+  BookOpen,
   Brain,
   ChevronLeft,
   ChevronRight,
@@ -163,7 +164,7 @@ function formatAuthError(message: string) {
   return message
 }
 
-type AppView = 'quizzes' | 'admin'
+type AppView = 'notes' | 'flashcards' | 'quizzes' | 'guides' | 'admin'
 
 function App() {
   const [state, setState] = useState<PortalState>(() => loadState())
@@ -172,7 +173,7 @@ function App() {
   const [liveUser, setLiveUser] = useState<PortalUser | null>(null)
   const [authLoading, setAuthLoading] = useState(isSupabaseConfigured)
   const [authError, setAuthError] = useState('')
-  const [view, setView] = useState<AppView>('quizzes')
+  const [view, setView] = useState<AppView>('notes')
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
   const [selectedLectureSlug, setSelectedLectureSlug] = useState<string | null>(
     null,
@@ -277,11 +278,16 @@ function App() {
     accessibleCourses.find((course) => course.id === selectedCourseId) ??
     accessibleCourses[0] ??
     null
+  const noteCourses = accessibleCourses.filter((course) => course.code !== 'CHEM111')
+  const selectedNoteCourse =
+    noteCourses.find((course) => course.id === selectedCourseId) ??
+    noteCourses[0] ??
+    null
   const selectedLecture =
-    selectedCourse?.lectures.find(
+    selectedNoteCourse?.lectures.find(
       (lecture) => lecture.slug === selectedLectureSlug,
     ) ??
-    selectedCourse?.lectures[0] ??
+    selectedNoteCourse?.lectures[0] ??
     null
 
   if (!currentUser) {
@@ -331,7 +337,7 @@ function App() {
           <Shield size={34} />
           <h1>Waiting for approval</h1>
           <p>
-            Your account exists, but Gabriel needs to approve it before quizzes are
+            Your account exists, but Gabriel needs to approve it before notes are
             visible.
           </p>
           {currentUser.email && (
@@ -355,11 +361,32 @@ function App() {
     >
       <div className="app-tabs">
         <button
+          className={view === 'notes' ? 'active' : ''}
+          onClick={() => setView('notes')}
+          type="button"
+        >
+          <BookOpen size={17} /> Notes
+        </button>
+        <button
+          className={view === 'flashcards' ? 'active' : ''}
+          onClick={() => setView('flashcards')}
+          type="button"
+        >
+          <Brain size={17} /> Flashcards
+        </button>
+        <button
           className={view === 'quizzes' ? 'active' : ''}
           onClick={() => setView('quizzes')}
           type="button"
         >
           <ListChecks size={17} /> Quizzes
+        </button>
+        <button
+          className={view === 'guides' ? 'active' : ''}
+          onClick={() => setView('guides')}
+          type="button"
+        >
+          <FileText size={17} /> Guides
         </button>
         {currentUser.role === 'admin' && (
           <button
@@ -374,6 +401,16 @@ function App() {
 
       {view === 'admin' && currentUser.role === 'admin' ? (
         <AdminPanel state={state} setState={setState} />
+      ) : view === 'flashcards' ? (
+        <FlashcardsView
+          state={state}
+          courses={noteCourses}
+          selectedCourse={selectedNoteCourse}
+          setSelectedCourseId={(courseId) => {
+            setSelectedCourseId(courseId)
+            setSelectedLectureSlug(null)
+          }}
+        />
       ) : view === 'quizzes' ? (
         <QuizzesView
           state={state}
@@ -384,10 +421,20 @@ function App() {
             setSelectedLectureSlug(null)
           }}
         />
+      ) : view === 'guides' ? (
+        <GuidesView
+          state={state}
+          courses={noteCourses}
+          selectedCourse={selectedNoteCourse}
+          setSelectedCourseId={(courseId) => {
+            setSelectedCourseId(courseId)
+            setSelectedLectureSlug(null)
+          }}
+        />
       ) : (
         <NotesView
-          courses={accessibleCourses}
-          selectedCourse={selectedCourse}
+          courses={noteCourses}
+          selectedCourse={selectedNoteCourse}
           selectedLecture={selectedLecture}
           setSelectedCourseId={(courseId) => {
             setSelectedCourseId(courseId)
@@ -523,11 +570,11 @@ function AuthScreen({
   return (
     <main className="auth-layout">
       <section className="auth-intro">
-        <p className="eyebrow">Private quiz portal</p>
-        <h1>Exam quizzes with controlled access.</h1>
+        <p className="eyebrow">Private study portal</p>
+        <h1>Course notes with controlled access.</h1>
         <p>
-          A private exam-practice workspace for current and future courses:
-          accounts, approval, course access, and generated quizzes.
+          A future-proof home for current and future courses: accounts, approval,
+          course access, and admin-managed lecture notes.
         </p>
         <div className="status-strip">
           <span>
@@ -539,7 +586,7 @@ function AuthScreen({
           </span>
           {snapshotLoaded && <span>Snapshot loaded</span>}
           <span>{state.courses.length} courses seeded</span>
-          <span>{state.quizzes.length} quizzes</span>
+          <span>{state.courses.reduce((sum, c) => sum + c.lectures.length, 0)} lectures</span>
         </div>
       </section>
       <section className="auth-card">
@@ -636,8 +683,8 @@ function Shell({
     <div className="portal-shell">
       <header className="topbar">
         <div>
-          <p className="eyebrow">Quiz portal</p>
-          <h1>Exam Practice</h1>
+          <p className="eyebrow">Notes portal</p>
+          <h1>Study Notes</h1>
         </div>
         <div className="user-chip">
           <span>{currentUser.name}</span>
@@ -784,12 +831,10 @@ function NotesView({
 }
 
 function StudyCourseRail({
-  state,
   courses,
   selectedCourse,
   setSelectedCourseId,
 }: {
-  state: PortalState
   courses: Course[]
   selectedCourse: Course | null
   setSelectedCourseId: (courseId: string) => void
@@ -805,13 +850,7 @@ function StudyCourseRail({
           type="button"
         >
           <strong>{course.code}</strong>
-          <span>
-            {
-              state.quizzes.filter(
-                (quiz) => quiz.status === 'published' && quiz.courseId === course.id,
-              ).length
-            } quizzes
-          </span>
+          <span>{course.lectures.length} lectures</span>
         </button>
       ))}
     </aside>
@@ -866,7 +905,6 @@ function FlashcardsView({
   return (
     <main className="study-layout">
       <StudyCourseRail
-        state={state}
         courses={courses}
         selectedCourse={selectedCourse}
         setSelectedCourseId={setSelectedCourseId}
@@ -945,7 +983,7 @@ function FlashcardsView({
           <div className="empty-panel">
             <Brain size={24} />
             <strong>No flashcards for this course yet</strong>
-            <p>Published flashcards will appear here automatically.</p>
+            <p>Published lecture flashcards will appear here automatically.</p>
           </div>
         )}
       </section>
@@ -1018,7 +1056,6 @@ function QuizzesView({
   return (
     <main className="study-layout">
       <StudyCourseRail
-        state={state}
         courses={courses}
         selectedCourse={selectedCourse}
         setSelectedCourseId={setSelectedCourseId}
@@ -1030,7 +1067,7 @@ function QuizzesView({
             <h2>
               {selectedCourse ? `${selectedCourse.code} practice` : 'Quizzes'}
             </h2>
-            <p>Pick a quiz, answer each question, then check the worked explanation.</p>
+            <p>Pick a quiz, answer each question, then review the explanation.</p>
           </div>
           <div className="study-stats">
             <span>{publishedQuizzes.length} quizzes</span>
@@ -1155,7 +1192,7 @@ function QuizzesView({
           <div className="empty-panel">
             <ListChecks size={24} />
             <strong>No quizzes for this course yet</strong>
-            <p>Published exam quizzes will appear here automatically.</p>
+            <p>Published lecture quizzes will appear here automatically.</p>
           </div>
         )}
       </section>
@@ -1194,7 +1231,6 @@ function GuidesView({
   return (
     <main className="study-layout">
       <StudyCourseRail
-        state={state}
         courses={courses}
         selectedCourse={selectedCourse}
         setSelectedCourseId={setSelectedCourseId}
@@ -1246,16 +1282,13 @@ function GuidesView({
           <div className="empty-panel">
             <FileText size={24} />
             <strong>No study guides for this course yet</strong>
-            <p>Published guides will appear here automatically.</p>
+            <p>Published lecture guides will appear here automatically.</p>
           </div>
         )}
       </section>
     </main>
   )
 }
-
-void FlashcardsView
-void GuidesView
 
 function AdminPanel({
   state,
